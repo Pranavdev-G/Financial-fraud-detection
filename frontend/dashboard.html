@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fraud Detection ADSA Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+html,body{height:100%;overflow:hidden;}
+#mainContent{scroll-behavior:smooth;}
+#mainContent::-webkit-scrollbar{width:6px;}
+#mainContent::-webkit-scrollbar-thumb{background:#6366f1;border-radius:4px;}
+.navbtn{display:block;width:100%;background:#1a174c;padding:8px 12px;margin-bottom:8px;border-radius:6px;text-align:left;font-size:13px;transition:background .15s;color:#fff;}
+.navbtn:hover{background:#04054b;}
+.drop-zone{border:2px dashed #818cf8;border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;}
+.drop-zone:hover{background:#eef2ff;}
+.stat-card{border-radius:8px;padding:12px 16px;text-align:center;}
+.stat-num{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;}
+.stat-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+.dtable{width:100%;border-collapse:collapse;font-size:12px;}
+.dtable th{background:#eef2ff;color:#1a174c;padding:7px 10px;text-align:left;border-bottom:2px solid #c7d2fe;font-size:11px;text-transform:uppercase;white-space:nowrap;}
+.dtable td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#1e293b;font-variant-numeric:tabular-nums;}
+.dtable tr:hover td{background:#f8faff;}
+.dtable tr:last-child td{border:none;}
+.tscroll{max-height:300px;overflow-y:auto;border:1px solid #e0e7ff;border-radius:6px;}
+.tscroll .dtable thead th{position:sticky;top:0;z-index:1;}
+.bfraud{background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;}
+.blegit{background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;}
+.brisk{background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.bar-label{width:130px;font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bar-track{flex:1;background:#e0e7ff;border-radius:4px;height:14px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s;}
+.bar-val{font-size:11px;font-variant-numeric:tabular-nums;color:#374151;width:80px;text-align:right;}
+.sec{font-size:11px;font-weight:700;color:#1a174c;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid #e0e7ff;}
+.spin-icon{display:inline-block;width:14px;height:14px;border:2px solid #c7d2fe;border-top-color:#4f46e5;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.step-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
+.step-tag{background:#e0e7ff;color:#1a174c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;}
+.lis-item{display:inline-flex;flex-direction:column;align-items:center;margin:4px;}
+.lis-amt{background:#ddd6fe;color:#5b21b6;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
+.lis-arr{font-size:18px;color:#a78bfa;line-height:1;}
+</style>
+</head>
+
+<body class="bg-gray-100">
+<div class="flex">
+
+<!-- SIDEBAR -->
+<div class="w-56 bg-indigo-800 text-white fixed left-0 top-0 h-screen p-5 flex flex-col overflow-hidden">
+  <h1 class="text-base font-bold leading-tight">Fraud Detection</h1>
+  <p class="text-indigo-300 text-xs mb-4">ADSA Dashboard</p>
+
+  <div class="drop-zone mb-2" onclick="document.getElementById('csvInput').click()">
+    <div class="text-2xl">📂</div>
+    <div id="dropLabel" class="text-xs text-indigo-300 mt-1">Upload CSV Dataset</div>
+  </div>
+  <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="uploadDataset(this)"/>
+  <div id="uploadStatus" class="text-xs text-indigo-300 mb-3"></div>
+
+  <hr class="border-indigo-600 mb-3"/>
+  <p class="text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-2">Overview</p>
+  <button onclick="goTo('datasetBox')" class="navbtn">📊 Dataset Overview</button>
+
+  <hr class="border-indigo-600 my-2"/>
+  <p class="text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-2">Algorithms</p>
+  <button onclick="goTo('divideBox')" class="navbtn">⚡ Divide &amp; Conquer</button>
+  <button onclick="goTo('binaryBox')" class="navbtn">🔍 Binary Search</button>
+  <button onclick="goTo('greedyBox')" class="navbtn">🎯 Greedy Method</button>
+  <button onclick="goTo('dynamicBox')" class="navbtn">🧠 Dynamic Programming</button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="mainContent" class="ml-56 h-screen overflow-y-auto p-6 space-y-6">
+
+  <!-- STATUS BAR -->
+  <div id="statusBar" style="display:none" class="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-3 py-2 text-sm"></div>
+
+  <!-- ① DATASET -->
+  <div id="datasetBox" class="box bg-white p-6 rounded-xl shadow">
+    <h2 class="text-lg font-bold text-indigo-800 mb-4">Dataset Overview</h2>
+    <div id="preInfo" class="text-sm text-gray-400 italic">Upload any financial fraud CSV to begin. Columns auto-detected.</div>
+    <div id="statsArea" class="hidden">
+      <div class="grid grid-cols-5 gap-3 mb-4">
+        <div class="stat-card bg-blue-50"><div class="stat-num text-blue-700" id="s_total">--</div><div class="stat-lbl text-blue-400">Total Rows</div></div>
+        <div class="stat-card bg-red-50"><div class="stat-num text-red-600" id="s_fraud">--</div><div class="stat-lbl text-red-400">Fraud</div></div>
+        <div class="stat-card bg-green-50"><div class="stat-num text-green-600" id="s_legit">--</div><div class="stat-lbl text-green-400">Legitimate</div></div>
+        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-600" id="s_rate">--</div><div class="stat-lbl text-yellow-400">Fraud Rate</div></div>
+        <div class="stat-card bg-purple-50"><div class="stat-num text-purple-600" id="s_mean">--</div><div class="stat-lbl text-purple-400">Mean Amount</div></div>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_min">--</div><div class="stat-lbl text-gray-400">Min Amount</div></div>
+        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_max">--</div><div class="stat-lbl text-gray-400">Max Amount</div></div>
+        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_med">--</div><div class="stat-lbl text-gray-400">Median</div></div>
+        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_std">--</div><div class="stat-lbl text-gray-400">Std Dev</div></div>
+      </div>
+      <div class="sec">Payment Methods</div>
+      <div id="pmBars" class="mb-4"></div>
+      <div class="sec">Columns Auto-Detected</div>
+      <div id="colMap" class="text-xs"></div>
+    </div>
+  </div>
+
+  <!-- ② DIVIDE & CONQUER -->
+  <div id="divideBox" class="box bg-white p-6 rounded-xl shadow">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-indigo-800">Divide &amp; Conquer</h2>
+      <button onclick="runDivide()" class="bg-green-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-green-700">Run</button>
+    </div>
+    <div id="divideResult"><p class="text-sm text-gray-400 italic">Click Run to execute.</p></div>
+  </div>
+
+  <!-- ③ BINARY SEARCH -->
+  <div id="binaryBox" class="box bg-white p-6 rounded-xl shadow">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-indigo-800">Binary Search</h2>
+      <div class="flex gap-2">
+        <input type="number" id="searchAmt" placeholder="Enter amount" class="border border-gray-300 rounded px-3 py-1 text-sm w-36 outline-none focus:border-indigo-400"/>
+        <button onclick="runBinary()" class="bg-indigo-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-indigo-700">Search</button>
+      </div>
+    </div>
+    <div id="binaryResult"><p class="text-sm text-gray-400 italic">Enter an amount and click Search.</p></div>
+  </div>
+
+  <!-- ④ GREEDY -->
+  <div id="greedyBox" class="box bg-white p-6 rounded-xl shadow">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-indigo-800">Greedy Method</h2>
+      <button onclick="runGreedy()" class="bg-red-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-red-700">Run</button>
+    </div>
+    <div id="greedyResult"><p class="text-sm text-gray-400 italic">Click Run to execute.</p></div>
+  </div>
+
+  <!-- ⑤ DYNAMIC PROGRAMMING -->
+  <div id="dynamicBox" class="box bg-white p-6 rounded-xl shadow">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-indigo-800">Dynamic Programming</h2>
+      <button onclick="runDynamic()" class="bg-purple-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-purple-700">Run</button>
+    </div>
+    <div id="dynamicResult"><p class="text-sm text-gray-400 italic">Click Run to execute.</p></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+
+function goTo(id){
+  const el = document.getElementById(id);
+  document.querySelectorAll('.box').forEach(b=>b.classList.remove('ring','ring-indigo-400'));
+  el.classList.add('ring','ring-indigo-400');
+  document.getElementById('mainContent').scrollTo({top:el.offsetTop-20,behavior:'smooth'});
+}
+
+function setStatus(msg,type='info'){
+  const b=document.getElementById('statusBar');
+  b.style.display='block'; b.textContent=msg;
+  b.className = type==='ok'?'bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm':
+                type==='error'?'bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm':
+                'bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-3 py-2 text-sm';
+}
+
+function loading(id){document.getElementById(id).innerHTML='<span class="spin-icon"></span><span class="text-sm text-indigo-600">Processing…</span>';}
+function f(n){return typeof n==='number'?n.toLocaleString():n;}
+
+function txTable(rows,cols,keys){
+  if(!rows||!rows.length) return '<p class="text-xs text-gray-400 italic p-2">No data.</p>';
+  const ths=cols.map(c=>`<th>${c}</th>`).join('');
+  const trs=rows.map((r,i)=>{
+    const tds=keys.map(k=>{
+      if(k==='_i') return `<td class="text-gray-400">${i+1}</td>`;
+      if(k==='fraud_flag'||k==='fraud') return `<td>${(r[k]===1||r[k]==='1')?'<span class="bfraud">Fraud</span>':'<span class="blegit">Legit</span>'}</td>`;
+      if(k==='risk_reason') return `<td class="text-yellow-700" style="font-size:11px;">${r[k]||''}</td>`;
+      if(k==='risk_score') return `<td><span class="brisk">${r[k]}</span></td>`;
+      if(k==='running_total') return `<td class="font-bold text-orange-600">₹${f(r[k])}</td>`;
+      if(k==='amount') return `<td class="font-semibold">₹${f(r[k])}</td>`;
+      return `<td>${r[k]??''}</td>`;
+    }).join('');
+    return `<tr>${tds}</tr>`;
+  }).join('');
+  return `<div class="tscroll"><table class="dtable"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+}
+
+/* ── UPLOAD ────────────────────────────────── */
+async function uploadDataset(input){
+  const file=input.files[0]; if(!file) return;
+  document.getElementById('dropLabel').textContent=file.name;
+  document.getElementById('uploadStatus').textContent='⏳ Uploading…';
+  setStatus('Uploading and preprocessing — AI will auto-detect all columns…');
+  const fd=new FormData(); fd.append('file',file);
+  try{
+    const res=await fetch(`${API}/upload-dataset`,{method:'POST',body:fd});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.detail||'Upload failed');
+    const info=data.dataset_info, mt=data.model_training||{};
+    document.getElementById('uploadStatus').textContent='✅ Ready';
+    document.getElementById('preInfo').classList.add('hidden');
+    document.getElementById('statsArea').classList.remove('hidden');
+
+    document.getElementById('s_total').textContent=f(info.total_transactions);
+    document.getElementById('s_fraud').textContent=f(info.fraud_transactions);
+    document.getElementById('s_legit').textContent=f(info.legitimate_transactions);
+    document.getElementById('s_rate').textContent=info.fraud_rate+'%';
+    document.getElementById('s_mean').textContent='₹'+f(info.amount_stats.mean);
+    document.getElementById('s_min').textContent='₹'+f(info.amount_stats.min);
+    document.getElementById('s_max').textContent='₹'+f(info.amount_stats.max);
+    document.getElementById('s_med').textContent='₹'+f(info.amount_stats.median);
+    document.getElementById('s_std').textContent='₹'+f(info.amount_stats.std);
+
+    // Payment methods bar chart
+    const pm=info.payment_methods||{};
+    const pmMax=Math.max(...Object.values(pm),1);
+    const colors=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+    document.getElementById('pmBars').innerHTML=Object.entries(pm).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>`
+      <div class="bar-row">
+        <div class="bar-label">${k}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(v/pmMax*100).toFixed(1)}%;background:${colors[i%colors.length]};"></div></div>
+        <div class="bar-val">${f(v)}</div>
+      </div>`).join('');
+
+    // Column map
+    const cm=info.columns_detected||{};
+    document.getElementById('colMap').innerHTML=Object.keys(cm).length
+      ?`<table><tbody>${Object.entries(cm).map(([o,s])=>`<tr><td class="text-gray-400 pr-2">${o}</td><td class="text-gray-400 pr-2">→</td><td class="font-semibold text-indigo-600">${s}</td></tr>`).join('')}</tbody></table>`
+      :'<p class="text-gray-400">Columns auto-generated.</p>';
+
+    setStatus(`✅ Loaded ${f(info.total_transactions)} rows | Fraud: ${info.fraud_rate}% | Accuracy: ${mt.train_accuracy?(mt.train_accuracy*100).toFixed(1)+'%':'N/A'} | F1: ${mt.fraud_f1||'N/A'}`, 'ok');
+    goTo('datasetBox');
+  }catch(e){
+    document.getElementById('uploadStatus').textContent='❌ Failed';
+    setStatus('Upload failed: '+e.message,'error');
+  }
+}
+
+/* ── DIVIDE & CONQUER ──────────────────────── */
+async function runDivide(){
+  loading('divideResult'); setStatus('Running Divide & Conquer…');
+  try{
+    const res=await fetch(`${API}/divide-conquer`);
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.detail);
+    const orig=data.original_sample||[], ms=data.merge_sorted_sample||[], qs=data.quick_sorted_sample||[];
+    const n=Math.max(orig.length,ms.length,qs.length);
+    let rows='';
+    for(let i=0;i<n;i++){
+      const isOut=ms[i]!==undefined&&ms[i]>data.outlier_threshold;
+      rows+=`<tr${isOut?' style="background:#fff1f2;"':''}>
+        <td class="text-gray-400">${i+1}</td>
+        <td>${orig[i]!==undefined?'₹'+f(orig[i]):''}</td>
+        <td class="text-green-700 font-semibold">${ms[i]!==undefined?'₹'+f(ms[i]):''}</td>
+        <td class="text-blue-700 font-semibold">${qs[i]!==undefined?'₹'+f(qs[i]):''}</td>
+        <td>${isOut?'<span class="bfraud">Outlier</span>':'<span class="blegit">Normal</span>'}</td>
+      </tr>`;
+    }
+    document.getElementById('divideResult').innerHTML=`
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="stat-card bg-indigo-50"><div class="stat-num text-indigo-700">${f(data.total_processed)}</div><div class="stat-lbl text-indigo-400">Processed</div></div>
+        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${data.outlier_count}</div><div class="stat-lbl text-red-400">Outliers Found</div></div>
+        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-700">₹${f(data.outlier_threshold)}</div><div class="stat-lbl text-yellow-500">Threshold (μ+2σ)</div></div>
+      </div>
+      <div class="sec">Merge Sort vs Quick Sort — ${n} Values (Red rows = Outlier above threshold)</div>
+      <div class="tscroll"><table class="dtable">
+        <thead><tr><th>#</th><th>Original</th><th>Merge Sorted ↑</th><th>Quick Sorted ↑</th><th>Flag</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <div class="sec" style="margin-top:12px;">Outlier Transactions</div>
+      ${txTable(data.outlier_transactions,['Sender','Receiver','Amount','Method','Status'],['sender','receiver','amount','payment_method','fraud_flag'])}
+    `;
+    setStatus('Divide & Conquer done. Outliers: '+data.outlier_count,'ok');
+  }catch(e){document.getElementById('divideResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
+}
+
+/* ── BINARY SEARCH ─────────────────────────── */
+async function runBinary(){
+  const val=document.getElementById('searchAmt').value;
+  if(!val){alert('Enter an amount.');return;}
+  loading('binaryResult'); setStatus('Running Binary Search…');
+  try{
+    const res=await fetch(`${API}/search?value=${val}`);
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.detail);
+    const target=parseFloat(val), found=data.found, nearby=data.nearby||[];
+    const chips=nearby.map(v=>{
+      const isT=Math.abs(v-target)<0.01;
+      return `<span style="display:inline-block;padding:3px 10px;border-radius:4px;margin:3px;font-size:12px;font-variant-numeric:tabular-nums;background:${isT?'#dcfce7':'#e0e7ff'};color:${isT?'#166534':'#3730a3'};font-weight:${isT?'700':'400'};">${isT?'▶ ':''}₹${f(v)}</span>`;
+    }).join('');
+    const steps=[
+      {s:'Step 1',t:'Sort all amounts — Merge Sort',r:'Sorted array ready'},
+      {s:'Step 2',t:'Set low = 0, high = n−1',r:'Search space = full array'},
+      {s:'Step 3',t:'mid = ⌊(low+high)/2⌋ → compare with ₹'+f(target),r:found?'Match at index '+data.index:'Not in dataset'},
+      {s:'Step 4',t:found?'Walk left → first occurrence':'low > high → stop',r:found?'Found at index '+data.index:'Not found — O(log n) done'},
+    ];
+    document.getElementById('binaryResult').innerHTML=`
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="stat-card bg-indigo-50"><div class="stat-num text-indigo-700">₹${f(target)}</div><div class="stat-lbl text-indigo-400">Search Value</div></div>
+        <div class="stat-card ${found?'bg-green-50':'bg-red-50'}">
+          <div class="stat-num ${found?'text-green-600':'text-red-600'}">${found?'✓ Found':'✗ Not Found'}</div>
+          <div class="stat-lbl ${found?'text-green-400':'text-red-400'}">Result</div>
+        </div>
+        <div class="stat-card bg-blue-50"><div class="stat-num text-blue-700">${found?data.index:'—'}</div><div class="stat-lbl text-blue-400">Array Index</div></div>
+      </div>
+      <div class="sec">Nearby Values in Sorted Array</div>
+      <div style="padding:6px 0;">${chips||'<span class="text-xs text-gray-400">No nearby values.</span>'}</div>
+      <div class="sec">Search Steps</div>
+      <div style="background:#f8faff;border:1px solid #e0e7ff;border-radius:6px;padding:12px;">
+        ${steps.map(s=>`<div class="step-row"><span class="step-tag">${s.s}</span><div><div style="font-size:12px;color:#374151;">${s.t}</div><div style="font-size:11px;color:#6366f1;margin-top:1px;">${s.r}</div></div></div>`).join('')}
+      </div>`;
+    setStatus('Binary Search done — '+(found?'Found at index '+data.index:'Not found'),'ok');
+  }catch(e){document.getElementById('binaryResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
+}
+
+/* ── GREEDY ────────────────────────────────── */
+async function runGreedy(){
+  loading('greedyResult'); setStatus('Running Greedy detection…');
+  try{
+    const res=await fetch(`${API}/greedy`);
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.detail);
+    const list=data.top_suspicious||[];
+    const top15=list.slice(0,15);
+    const maxS=Math.max(...top15.map(r=>r.risk_score||1),1);
+    const rColors={'High-value anomaly (> mean + 2σ)':'#ef4444','Account emptied (balance → 0)':'#7c3aed','Balance mismatch (transfer ≠ balance change)':'#ea580c','High-frequency sender (top 5% transaction count)':'#d97706','Suspicious round-number large amount':'#0891b2'};
+    const bars=top15.map(r=>`
+      <div class="bar-row">
+        <div class="bar-label" title="${r.sender}">${r.sender}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${((r.risk_score||1)/maxS*100).toFixed(1)}%;background:${rColors[r.risk_reason]||'#6366f1'};"></div></div>
+        <div class="bar-val">Score ${r.risk_score}</div>
+      </div>`).join('');
+    document.getElementById('greedyResult').innerHTML=`
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${f(data.suspicious_count)}</div><div class="stat-lbl text-red-400">Suspicious</div></div>
+        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-700">₹${f(data.threshold)}</div><div class="stat-lbl text-yellow-500">Threshold (μ+2σ)</div></div>
+        <div class="stat-card bg-blue-50"><div class="stat-num text-blue-700">₹${f(data.mean)}</div><div class="stat-lbl text-blue-400">Mean (μ)</div></div>
+        <div class="stat-card bg-purple-50"><div class="stat-num text-purple-700">₹${f(data.std_dev)}</div><div class="stat-lbl text-purple-400">Std Dev (σ)</div></div>
+      </div>
+      <div class="sec">Risk Score by Sender — Top 15</div>
+      ${bars}
+      <div class="sec" style="margin-top:12px;">All Suspicious Transactions</div>
+      ${txTable(list,['#','Sender','Receiver','Amount','Method','Risk Reason','Score','Status','Running Total'],['_i','sender','receiver','amount','payment_method','risk_reason','risk_score','fraud_flag','running_total'])}`;
+    setStatus('Greedy done. Suspicious: '+data.suspicious_count,'ok');
+  }catch(e){document.getElementById('greedyResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
+}
+
+/* ── DYNAMIC PROGRAMMING ───────────────────── */
+async function runDynamic(){
+  loading('dynamicResult'); setStatus('Running Dynamic Programming…');
+  try{
+    const res=await fetch(`${API}/dynamic`);
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.detail);
+    const ma=data.max_subarray||{}, lis=data.longest_increasing_subsequence||{};
+    const winTx=ma.transactions||[];
+    const maxA=Math.max(...winTx.map(r=>r.amount||0),1);
+    const winBars=winTx.map((r,i)=>`
+      <div class="bar-row">
+        <div class="bar-label text-xs" title="${r.sender}">${i+1}. ${r.sender}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(r.amount/maxA*100).toFixed(1)}%;background:${r.fraud_flag?'#ef4444':'#10b981'};"></div></div>
+        <div style="font-size:11px;width:100px;text-align:right;font-variant-numeric:tabular-nums;">₹${f(r.amount)} ${r.fraud_flag?'<span class="bfraud">F</span>':''}</div>
+      </div>`).join('');
+    const lisTx=lis.transactions||[];
+    const lisChain=lisTx.map((r,i)=>`
+      <span class="lis-item">
+        <span class="lis-amt" title="${r.sender}">₹${f(r.amount)}${r.fraud_flag?' 🚨':''}</span>
+        <span style="font-size:10px;color:#7c3aed;margin-top:2px;">${(r.sender||'').substring(0,9)}</span>
+      </span>${i<lisTx.length-1?'<span class="lis-arr">→</span>':''}`).join('');
+    document.getElementById('dynamicResult').innerHTML=`
+      <div class="sec">Kadane's Algorithm — Maximum Burst Window</div>
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-700">₹${f(ma.sum)}</div><div class="stat-lbl text-yellow-500">Max Sum</div></div>
+        <div class="stat-card bg-orange-50"><div class="stat-num text-orange-600">${ma.start_index}</div><div class="stat-lbl text-orange-400">Start Index</div></div>
+        <div class="stat-card bg-orange-50"><div class="stat-num text-orange-600">${ma.end_index}</div><div class="stat-lbl text-orange-400">End Index</div></div>
+        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${ma.fraud_in_window||0}</div><div class="stat-lbl text-red-400">Fraud in Window</div></div>
+      </div>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">Window: index ${ma.start_index}→${ma.end_index} | ${ma.window_length} transactions | <span style="color:#ef4444;">Red=Fraud</span> <span style="color:#10b981;">Green=Legit</span></div>
+      ${winBars}
+      ${txTable(winTx,['#','Sender','Receiver','Amount','Method','Status'],['_i','sender','receiver','amount','payment_method','fraud_flag'])}
+
+      <hr class="my-5 border-indigo-100"/>
+
+      <div class="sec">LIS — Longest Escalating Chain</div>
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="stat-card bg-purple-50"><div class="stat-num text-purple-700">${lis.length||0}</div><div class="stat-lbl text-purple-400">Chain Length</div></div>
+        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${lis.fraud_in_lis||0}</div><div class="stat-lbl text-red-400">Fraud in Chain</div></div>
+        <div class="stat-card bg-indigo-50"><div class="stat-num text-indigo-700">${f(data.sample_size)}</div><div class="stat-lbl text-indigo-400">Processed</div></div>
+      </div>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Each amount strictly greater than previous. 🚨 = Fraud transaction in chain.</div>
+      <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:14px;display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:12px;">
+        ${lisChain||'<span class="text-xs text-gray-400">No escalating chain found.</span>'}
+      </div>
+      ${txTable(lisTx,['#','Index','Sender','Receiver','Amount','Method','Status'],['_i','index','sender','receiver','amount','payment_method','fraud_flag'])}
+    `;
+    setStatus('Dynamic Programming done. LIS length: '+lis.length,'ok');
+  }catch(e){document.getElementById('dynamicResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
+}
+</script>
+</body>
+</html>

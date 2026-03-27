@@ -1,0 +1,5 @@
+backend/dataset/uploads/
+*.csv
+__pycache__/
+*.pyc
+.vscode/

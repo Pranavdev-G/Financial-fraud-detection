@@ -2,395 +2,587 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fraud Detection ADSA Dashboard</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        base: "#f6f3ee",
+        ink: "#14213d",
+        accent: "#d97706",
+        panel: "#fffdf9"
+      },
+      boxShadow: {
+        panel: "0 14px 40px rgba(15, 23, 42, 0.08)"
+      }
+    }
+  }
+};
+</script>
 <style>
-html,body{height:100%;overflow:hidden;}
-#mainContent{scroll-behavior:smooth;}
-#mainContent::-webkit-scrollbar{width:6px;}
-#mainContent::-webkit-scrollbar-thumb{background:#6366f1;border-radius:4px;}
-.navbtn{display:block;width:100%;background:#4f46e5;padding:8px 12px;margin-bottom:8px;border-radius:6px;text-align:left;font-size:13px;transition:background .15s;color:#fff;}
-.navbtn:hover{background:#6366f1;}
-.drop-zone{border:2px dashed #818cf8;border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;}
-.drop-zone:hover{background:#eef2ff;}
-.stat-card{border-radius:8px;padding:12px 16px;text-align:center;}
-.stat-num{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;}
-.stat-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
-.dtable{width:100%;border-collapse:collapse;font-size:12px;}
-.dtable th{background:#eef2ff;color:#3730a3;padding:7px 10px;text-align:left;border-bottom:2px solid #c7d2fe;font-size:11px;text-transform:uppercase;white-space:nowrap;}
-.dtable td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#1e293b;font-variant-numeric:tabular-nums;}
-.dtable tr:hover td{background:#f8faff;}
-.dtable tr:last-child td{border:none;}
-.tscroll{max-height:300px;overflow-y:auto;border:1px solid #e0e7ff;border-radius:6px;}
-.tscroll .dtable thead th{position:sticky;top:0;z-index:1;}
-.bfraud{background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;}
-.blegit{background:#dcfce7;color:#166534;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;}
-.brisk{background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;}
-.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
-.bar-label{width:130px;font-size:12px;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.bar-track{flex:1;background:#e0e7ff;border-radius:4px;height:14px;overflow:hidden;}
-.bar-fill{height:100%;border-radius:4px;transition:width .5s;}
-.bar-val{font-size:11px;font-variant-numeric:tabular-nums;color:#374151;width:80px;text-align:right;}
-.sec{font-size:11px;font-weight:700;color:#4338ca;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;padding-bottom:3px;border-bottom:1px solid #e0e7ff;}
-.spin-icon{display:inline-block;width:14px;height:14px;border:2px solid #c7d2fe;border-top-color:#4f46e5;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.step-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
-.step-tag{background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;}
-.lis-item{display:inline-flex;flex-direction:column;align-items:center;margin:4px;}
-.lis-amt{background:#ddd6fe;color:#5b21b6;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
-.lis-arr{font-size:18px;color:#a78bfa;line-height:1;}
+html { scroll-behavior: smooth; }
+body { min-height: 100vh; }
+.navbtn { display:block; width:100%; border-radius:1rem; background:rgba(255,255,255,.08); color:#f8fafc; padding:.9rem 1rem; text-align:left; font-size:.95rem; font-weight:600; transition:background .18s ease,transform .18s ease; }
+.navbtn:hover { background:rgba(255,255,255,.16); transform:translateX(2px); }
+.drop-zone { border:2px dashed rgba(255,255,255,.25); border-radius:1.5rem; padding:1.2rem; text-align:center; cursor:pointer; transition:background .2s ease,border-color .2s ease; }
+.drop-zone:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.45); }
+.stat-card { border-radius:1.25rem; padding:1rem 1.1rem; text-align:center; }
+.stat-num { font-size:1.3rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.stat-lbl { margin-top:.35rem; font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; }
+.dtable { width:100%; border-collapse:collapse; font-size:.82rem; }
+.dtable th { position:sticky; top:0; z-index:1; background:#f4efe7; color:#334155; padding:.85rem .9rem; text-align:left; border-bottom:2px solid #e2ddd4; white-space:nowrap; font-size:.74rem; letter-spacing:.08em; text-transform:uppercase; }
+.dtable td { padding:.8rem .9rem; border-bottom:1px solid #eee7dc; color:#334155; font-variant-numeric:tabular-nums; vertical-align:top; }
+.dtable tr:hover td { background:#fffcf7; }
+.dtable tr:last-child td { border-bottom:none; }
+.tscroll { max-height:21rem; overflow:auto; border:1px solid #eee7dc; border-radius:1rem; }
+.tscroll::-webkit-scrollbar,#mainContent::-webkit-scrollbar { width:.5rem; height:.5rem; }
+.tscroll::-webkit-scrollbar-thumb,#mainContent::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+.bfraud,.blegit,.brisk { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:.22rem .55rem; font-size:.72rem; font-weight:700; }
+.bfraud { background:#fee2e2; color:#b91c1c; }
+.blegit { background:#dcfce7; color:#166534; }
+.brisk { background:#fef3c7; color:#92400e; }
+.bar-row { display:flex; align-items:center; gap:.75rem; margin-bottom:.7rem; }
+.bar-label { width:9rem; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.83rem; color:#475569; }
+.bar-track { flex:1; height:.85rem; overflow:hidden; border-radius:999px; background:#ece6da; }
+.bar-fill { height:100%; border-radius:999px; transition:width .45s ease; }
+.bar-val { width:5rem; flex-shrink:0; text-align:right; font-size:.74rem; color:#64748b; font-variant-numeric:tabular-nums; }
+.sec { margin:1.15rem 0 .65rem; padding-bottom:.45rem; border-bottom:1px solid #eee7dc; color:#475569; font-size:.72rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.spin-icon { display:inline-block; width:.9rem; height:.9rem; margin-right:.45rem; border:2px solid #fcd34d; border-top-color:transparent; border-radius:999px; animation:spin .7s linear infinite; vertical-align:-1px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.step-row { display:flex; gap:.8rem; align-items:flex-start; margin-bottom:.8rem; }
+.step-tag { flex-shrink:0; border-radius:999px; background:#fef3c7; color:#92400e; padding:.25rem .65rem; font-size:.72rem; font-weight:800; }
+.lis-item { display:inline-flex; flex-direction:column; align-items:center; gap:.25rem; }
+.lis-amt { border-radius:.9rem; background:#f3e8ff; color:#6b21a8; padding:.5rem .7rem; font-size:.8rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.lis-arr { color:#a855f7; font-size:1.25rem; line-height:1; }
+@media (max-width:1023px) { .bar-row { flex-wrap:wrap; } .bar-label,.bar-val { width:100%; } .step-row { flex-direction:column; } }
 </style>
 </head>
+<body class="bg-[linear-gradient(180deg,_#f8f5ef,_#f2ede4)] text-slate-900">
+  <div class="lg:grid lg:min-h-screen lg:grid-cols-[320px_minmax(0,1fr)]">
+    <aside class="relative overflow-hidden bg-[linear-gradient(180deg,_#14213d,_#1d3557)] px-6 py-8 text-white lg:sticky lg:top-0 lg:h-screen">
+      <div class="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.22),_transparent_58%)]"></div>
+      <div class="relative z-10">
+        <div class="mb-8">
+          <p class="text-xs uppercase tracking-[0.32em] text-amber-200/80">Fraud Detection</p>
+          <h1 class="mt-3 text-3xl font-black leading-tight">ADSA Dashboard</h1>
+          <p class="mt-3 text-sm leading-6 text-slate-300">
+            Upload a transaction dataset, compare algorithm outputs, and inspect suspicious behavior in one place.
+          </p>
+        </div>
 
-<body class="bg-gray-100">
-<div class="flex">
+        <div class="drop-zone mb-4" onclick="document.getElementById('csvInput').click()">
+          <div class="text-3xl font-black text-amber-300">CSV</div>
+          <div id="dropLabel" class="mt-2 text-sm text-slate-200">Upload transaction dataset</div>
+          <div class="mt-2 text-xs text-slate-400">Accepted format: .csv</div>
+        </div>
+        <label for="csvInput"
+class="cursor-pointer bg-yellow-400 text-blue-900 px-6 py-2 rounded-lg shadow hover:bg-yellow-500 transition">
+Upload CSV
+</label>
 
-<!-- SIDEBAR -->
-<div class="w-56 bg-indigo-800 text-white fixed left-0 top-0 h-screen p-5 flex flex-col overflow-hidden">
-  <h1 class="text-base font-bold leading-tight">Fraud Detection</h1>
-  <p class="text-indigo-300 text-xs mb-4">ADSA Dashboard</p>
+<input type="file" id="csvInput" accept=".csv" class="hidden" onchange="uploadDataset(this)">
 
-  <div class="drop-zone mb-2" onclick="document.getElementById('csvInput').click()">
-    <div class="text-2xl">📂</div>
-    <div id="dropLabel" class="text-xs text-indigo-300 mt-1">Upload CSV Dataset</div>
-  </div>
-  <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="uploadDataset(this)"/>
-  <div id="uploadStatus" class="text-xs text-indigo-300 mb-3"></div>
+<div id="uploadStatus" class="mb-6 text-sm text-slate-300"></div>
 
-  <hr class="border-indigo-600 mb-3"/>
-  <p class="text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-2">Overview</p>
-  <button onclick="goTo('datasetBox')" class="navbtn">📊 Dataset Overview</button>
+        <div class="rounded-[1.5rem] border border-white/10 bg-white/5 p-4 backdrop-blur">
+          <p class="text-xs uppercase tracking-[0.24em] text-amber-200/75">Navigate</p>
+          <div class="mt-4 space-y-2">
+            <button onclick="goTo('datasetBox')" class="navbtn">Dataset Overview</button>
+            <button onclick="goTo('divideBox')" class="navbtn">Divide and Conquer</button>
+            <button onclick="goTo('binaryBox')" class="navbtn">Binary Search</button>
+            <button onclick="goTo('greedyBox')" class="navbtn">Greedy Method</button>
+            <button onclick="goTo('dynamicBox')" class="navbtn">Dynamic Programming</button>
+          </div>
+        </div>
 
-  <hr class="border-indigo-600 my-2"/>
-  <p class="text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-2">Algorithms</p>
-  <button onclick="goTo('divideBox')" class="navbtn">⚡ Divide &amp; Conquer</button>
-  <button onclick="goTo('binaryBox')" class="navbtn">🔍 Binary Search</button>
-  <button onclick="goTo('greedyBox')" class="navbtn">🎯 Greedy Method</button>
-  <button onclick="goTo('dynamicBox')" class="navbtn">🧠 Dynamic Programming</button>
-</div>
-
-<!-- MAIN CONTENT -->
-<div id="mainContent" class="ml-56 h-screen overflow-y-auto p-6 space-y-6">
-
-  <!-- STATUS BAR -->
-  <div id="statusBar" style="display:none" class="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-3 py-2 text-sm"></div>
-
-  <!-- ① DATASET -->
-  <div id="datasetBox" class="box bg-white p-6 rounded-xl shadow">
-    <h2 class="text-lg font-bold text-indigo-800 mb-4">Dataset Overview</h2>
-    <div id="preInfo" class="text-sm text-gray-400 italic">Upload any financial fraud CSV to begin. Columns auto-detected.</div>
-    <div id="statsArea" class="hidden">
-      <div class="grid grid-cols-5 gap-3 mb-4">
-        <div class="stat-card bg-blue-50"><div class="stat-num text-blue-700" id="s_total">--</div><div class="stat-lbl text-blue-400">Total Rows</div></div>
-        <div class="stat-card bg-red-50"><div class="stat-num text-red-600" id="s_fraud">--</div><div class="stat-lbl text-red-400">Fraud</div></div>
-        <div class="stat-card bg-green-50"><div class="stat-num text-green-600" id="s_legit">--</div><div class="stat-lbl text-green-400">Legitimate</div></div>
-        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-600" id="s_rate">--</div><div class="stat-lbl text-yellow-400">Fraud Rate</div></div>
-        <div class="stat-card bg-purple-50"><div class="stat-num text-purple-600" id="s_mean">--</div><div class="stat-lbl text-purple-400">Mean Amount</div></div>
+        <div class="mt-6 rounded-[1.5rem] border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+          <p class="font-semibold text-white">Backend</p>
+          <p class="mt-2 leading-6">Expected API base URL: <code class="rounded bg-white/10 px-2 py-1 text-xs">http://127.0.0.1:8000</code></p>
+        </div>
       </div>
-      <div class="grid grid-cols-4 gap-3 mb-4">
-        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_min">--</div><div class="stat-lbl text-gray-400">Min Amount</div></div>
-        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_max">--</div><div class="stat-lbl text-gray-400">Max Amount</div></div>
-        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_med">--</div><div class="stat-lbl text-gray-400">Median</div></div>
-        <div class="stat-card bg-gray-50"><div class="stat-num text-gray-700" id="s_std">--</div><div class="stat-lbl text-gray-400">Std Dev</div></div>
-      </div>
-      <div class="sec">Payment Methods</div>
-      <div id="pmBars" class="mb-4"></div>
-      <div class="sec">Columns Auto-Detected</div>
-      <div id="colMap" class="text-xs"></div>
-    </div>
-  </div>
+    </aside>
 
-  <!-- ② DIVIDE & CONQUER -->
-  <div id="divideBox" class="box bg-white p-6 rounded-xl shadow">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold text-indigo-800">Divide &amp; Conquer</h2>
-      <button onclick="runDivide()" class="bg-green-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-green-700">Run</button>
-    </div>
-    <div id="divideResult"><p class="text-sm text-gray-400 italic">Click Run to execute.</p></div>
-  </div>
+    <main id="mainContent" class="max-h-screen overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <section class="mx-auto max-w-7xl space-y-6">
+        <header class="rounded-[1.75rem] bg-[linear-gradient(135deg,_#fffdf9,_#f6efe4)] p-6 shadow-panel">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.32em] text-slate-500">Fraud Analytics Workspace</p>
+              <h2 class="mt-2 text-3xl font-black text-ink">Transaction intelligence dashboard</h2>
+              <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
+                Run ADSA-driven analysis on uploaded transaction data and review outliers, matches, suspicious behavior, and escalation patterns.
+              </p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div class="rounded-2xl bg-white p-4 text-center shadow-sm"><div class="text-xl font-black text-amber-600">4</div><div class="mt-1 text-[0.68rem] uppercase tracking-[0.16em] text-slate-500">Algorithms</div></div>
+              <div class="rounded-2xl bg-white p-4 text-center shadow-sm"><div class="text-xl font-black text-sky-700">CSV</div><div class="mt-1 text-[0.68rem] uppercase tracking-[0.16em] text-slate-500">Dataset Input</div></div>
+              <div class="rounded-2xl bg-white p-4 text-center shadow-sm"><div class="text-xl font-black text-emerald-700">Live</div><div class="mt-1 text-[0.68rem] uppercase tracking-[0.16em] text-slate-500">API Calls</div></div>
+              <div class="rounded-2xl bg-white p-4 text-center shadow-sm"><div class="text-xl font-black text-rose-700">Fast</div><div class="mt-1 text-[0.68rem] uppercase tracking-[0.16em] text-slate-500">Analysis Flow</div></div>
+            </div>
+          </div>
+        </header>
 
-  <!-- ③ BINARY SEARCH -->
-  <div id="binaryBox" class="box bg-white p-6 rounded-xl shadow">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold text-indigo-800">Binary Search</h2>
-      <div class="flex gap-2">
-        <input type="number" id="searchAmt" placeholder="Enter amount" class="border border-gray-300 rounded px-3 py-1 text-sm w-36 outline-none focus:border-indigo-400"/>
-        <button onclick="runBinary()" class="bg-indigo-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-indigo-700">Search</button>
-      </div>
-    </div>
-    <div id="binaryResult"><p class="text-sm text-gray-400 italic">Enter an amount and click Search.</p></div>
-  </div>
+        <div id="statusBar" class="hidden rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm"></div>
 
-  <!-- ④ GREEDY -->
-  <div id="greedyBox" class="box bg-white p-6 rounded-xl shadow">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold text-indigo-800">Greedy Method</h2>
-      <button onclick="runGreedy()" class="bg-red-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-red-700">Run</button>
-    </div>
-    <div id="greedyResult"><p class="text-sm text-gray-400 italic">Click Run to execute.</p></div>
-  </div>
+        <section id="datasetBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 01</p>
+              <h3 class="mt-2 text-2xl font-black text-ink">Dataset Overview</h3>
+            </div>
+            <p class="max-w-xl text-sm leading-6 text-slate-500">Upload any financial transaction dataset to populate dataset statistics, payment method splits, and detected column mappings.</p>
+          </div>
 
-  <!-- ⑤ DYNAMIC PROGRAMMING -->
-  <div id="dynamicBox" class="box bg-white p-6 rounded-xl shadow">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold text-indigo-800">Dynamic Programming</h2>
-      <button onclick="runDynamic()" class="bg-purple-600 text-white px-5 py-2 rounded text-sm font-bold hover:bg-purple-700">Run</button>
-    </div>
-    <div id="dynamicResult"><p class="text-sm text-gray-400 italic">Click Run to execute.</p></div>
-  </div>
+          <div id="preInfo" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm italic text-slate-500">
+            No dataset loaded yet. Use the upload panel on the left to begin analysis.
+          </div>
 
-</div>
-</div>
+          <div id="statsArea" class="hidden space-y-6">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div class="stat-card bg-sky-50"><div class="stat-num text-sky-700" id="s_total">--</div><div class="stat-lbl text-sky-500">Total Rows</div></div>
+              <div class="stat-card bg-rose-50"><div class="stat-num text-rose-700" id="s_fraud">--</div><div class="stat-lbl text-rose-500">Fraud</div></div>
+              <div class="stat-card bg-emerald-50"><div class="stat-num text-emerald-700" id="s_legit">--</div><div class="stat-lbl text-emerald-500">Legitimate</div></div>
+              <div class="stat-card bg-amber-50"><div class="stat-num text-amber-700" id="s_rate">--</div><div class="stat-lbl text-amber-500">Fraud Rate</div></div>
+              <div class="stat-card bg-violet-50"><div class="stat-num text-violet-700" id="s_mean">--</div><div class="stat-lbl text-violet-500">Mean Amount</div></div>
+            </div>
+
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="stat-card bg-slate-100"><div class="stat-num text-slate-700" id="s_min">--</div><div class="stat-lbl text-slate-500">Min Amount</div></div>
+              <div class="stat-card bg-slate-100"><div class="stat-num text-slate-700" id="s_max">--</div><div class="stat-lbl text-slate-500">Max Amount</div></div>
+              <div class="stat-card bg-slate-100"><div class="stat-num text-slate-700" id="s_med">--</div><div class="stat-lbl text-slate-500">Median</div></div>
+              <div class="stat-card bg-slate-100"><div class="stat-num text-slate-700" id="s_std">--</div><div class="stat-lbl text-slate-500">Std Dev</div></div>
+            </div>
+
+            <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <div>
+                <div class="sec">Payment Methods</div>
+                <div id="pmBars" class="rounded-2xl bg-slate-50 p-4"></div>
+              </div>
+              <div>
+                <div class="sec">Columns Auto-Detected</div>
+                <div id="colMap" class="rounded-2xl bg-slate-50 p-4 text-sm"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="divideBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 02</p>
+              <h3 class="mt-2 text-2xl font-black text-ink">Divide and Conquer</h3>
+            </div>
+            <button onclick="runDivide()" class="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700">Run Analysis</button>
+          </div>
+          <div id="divideResult"><p class="text-sm italic text-slate-500">Run the algorithm to compare sorting output and detect outlier transactions.</p></div>
+        </section>
+
+        <section id="binaryBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
+          <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 03</p>
+              <h3 class="mt-2 text-2xl font-black text-ink">Binary Search</h3>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row">
+              <input type="number" id="searchAmt" placeholder="Enter amount" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-500">
+              <button onclick="runBinary()" class="rounded-2xl bg-sky-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-sky-800">Search Amount</button>
+            </div>
+          </div>
+          <div id="binaryResult"><p class="text-sm italic text-slate-500">Enter an amount and run binary search to inspect sorted-array matches.</p></div>
+        </section>
+
+        <section id="greedyBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 04</p>
+              <h3 class="mt-2 text-2xl font-black text-ink">Greedy Method</h3>
+            </div>
+            <button onclick="runGreedy()" class="rounded-2xl bg-rose-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-rose-700">Run Analysis</button>
+          </div>
+          <div id="greedyResult"><p class="text-sm italic text-slate-500">Run the greedy method to rank suspicious transactions and risky senders.</p></div>
+        </section>
+
+        <section id="dynamicBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
+          <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 05</p>
+              <h3 class="mt-2 text-2xl font-black text-ink">Dynamic Programming</h3>
+            </div>
+            <button onclick="runDynamic()" class="rounded-2xl bg-violet-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-800">Run Analysis</button>
+          </div>
+          <div id="dynamicResult"><p class="text-sm italic text-slate-500">Run the dynamic programming workflow to inspect burst windows and escalating chains.</p></div>
+        </section>
+      </section>
+    </main>
+  </div>
 
 <script>
-const API = 'http://127.0.0.1:8000';
+const API = "http://127.0.0.1:8000";
 
-function goTo(id){
+function goTo(id) {
   const el = document.getElementById(id);
-  document.querySelectorAll('.box').forEach(b=>b.classList.remove('ring','ring-indigo-400'));
-  el.classList.add('ring','ring-indigo-400');
-  document.getElementById('mainContent').scrollTo({top:el.offsetTop-20,behavior:'smooth'});
+  document.querySelectorAll(".box").forEach((box) => box.classList.remove("ring-2", "ring-amber-400"));
+  el.classList.add("ring-2", "ring-amber-400");
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function setStatus(msg,type='info'){
-  const b=document.getElementById('statusBar');
-  b.style.display='block'; b.textContent=msg;
-  b.className = type==='ok'?'bg-green-50 border border-green-200 text-green-700 rounded px-3 py-2 text-sm':
-                type==='error'?'bg-red-50 border border-red-200 text-red-700 rounded px-3 py-2 text-sm':
-                'bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-3 py-2 text-sm';
+function setStatus(msg, type = "info") {
+  const bar = document.getElementById("statusBar");
+  bar.style.display = "block";
+  bar.textContent = msg;
+
+  if (type === "ok") {
+    bar.className = "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 shadow-sm";
+    return;
+  }
+
+  if (type === "error") {
+    bar.className = "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 shadow-sm";
+    return;
+  }
+
+  bar.className = "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm";
 }
 
-function loading(id){document.getElementById(id).innerHTML='<span class="spin-icon"></span><span class="text-sm text-indigo-600">Processing…</span>';}
-function f(n){return typeof n==='number'?n.toLocaleString():n;}
-
-function txTable(rows,cols,keys){
-  if(!rows||!rows.length) return '<p class="text-xs text-gray-400 italic p-2">No data.</p>';
-  const ths=cols.map(c=>`<th>${c}</th>`).join('');
-  const trs=rows.map((r,i)=>{
-    const tds=keys.map(k=>{
-      if(k==='_i') return `<td class="text-gray-400">${i+1}</td>`;
-      if(k==='fraud_flag'||k==='fraud') return `<td>${(r[k]===1||r[k]==='1')?'<span class="bfraud">Fraud</span>':'<span class="blegit">Legit</span>'}</td>`;
-      if(k==='risk_reason') return `<td class="text-yellow-700" style="font-size:11px;">${r[k]||''}</td>`;
-      if(k==='risk_score') return `<td><span class="brisk">${r[k]}</span></td>`;
-      if(k==='running_total') return `<td class="font-bold text-orange-600">₹${f(r[k])}</td>`;
-      if(k==='amount') return `<td class="font-semibold">₹${f(r[k])}</td>`;
-      return `<td>${r[k]??''}</td>`;
-    }).join('');
-    return `<tr>${tds}</tr>`;
-  }).join('');
-  return `<div class="tscroll"><table class="dtable"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+function loading(id) {
+  document.getElementById(id).innerHTML = '<span class="spin-icon"></span><span class="text-sm text-amber-700">Processing...</span>';
 }
 
-/* ── UPLOAD ────────────────────────────────── */
-async function uploadDataset(input){
-  const file=input.files[0]; if(!file) return;
-  document.getElementById('dropLabel').textContent=file.name;
-  document.getElementById('uploadStatus').textContent='⏳ Uploading…';
-  setStatus('Uploading and preprocessing — AI will auto-detect all columns…');
-  const fd=new FormData(); fd.append('file',file);
-  try{
-    const res=await fetch(`${API}/upload-dataset`,{method:'POST',body:fd});
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.detail||'Upload failed');
-    const info=data.dataset_info, mt=data.model_training||{};
-    document.getElementById('uploadStatus').textContent='✅ Ready';
-    document.getElementById('preInfo').classList.add('hidden');
-    document.getElementById('statsArea').classList.remove('hidden');
+function formatNumber(n) {
+  return typeof n === "number" ? n.toLocaleString("en-IN", { maximumFractionDigits: 2 }) : (n ?? "--");
+}
 
-    document.getElementById('s_total').textContent=f(info.total_transactions);
-    document.getElementById('s_fraud').textContent=f(info.fraud_transactions);
-    document.getElementById('s_legit').textContent=f(info.legitimate_transactions);
-    document.getElementById('s_rate').textContent=info.fraud_rate+'%';
-    document.getElementById('s_mean').textContent='₹'+f(info.amount_stats.mean);
-    document.getElementById('s_min').textContent='₹'+f(info.amount_stats.min);
-    document.getElementById('s_max').textContent='₹'+f(info.amount_stats.max);
-    document.getElementById('s_med').textContent='₹'+f(info.amount_stats.median);
-    document.getElementById('s_std').textContent='₹'+f(info.amount_stats.std);
+function money(n) {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) {
+    return "--";
+  }
+  return "Rs " + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
 
-    // Payment methods bar chart
-    const pm=info.payment_methods||{};
-    const pmMax=Math.max(...Object.values(pm),1);
-    const colors=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
-    document.getElementById('pmBars').innerHTML=Object.entries(pm).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>`
-      <div class="bar-row">
-        <div class="bar-label">${k}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${(v/pmMax*100).toFixed(1)}%;background:${colors[i%colors.length]};"></div></div>
-        <div class="bar-val">${f(v)}</div>
-      </div>`).join('');
+function txTable(rows, cols, keys) {
+  if (!rows || !rows.length) {
+    return '<p class="rounded-2xl bg-slate-50 p-4 text-sm italic text-slate-500">No data available.</p>';
+  }
 
-    // Column map
-    const cm=info.columns_detected||{};
-    document.getElementById('colMap').innerHTML=Object.keys(cm).length
-      ?`<table><tbody>${Object.entries(cm).map(([o,s])=>`<tr><td class="text-gray-400 pr-2">${o}</td><td class="text-gray-400 pr-2">→</td><td class="font-semibold text-indigo-600">${s}</td></tr>`).join('')}</tbody></table>`
-      :'<p class="text-gray-400">Columns auto-generated.</p>';
+  const headers = cols.map((c) => `<th>${c}</th>`).join("");
+  const body = rows.map((row, index) => {
+    const cells = keys.map((key) => {
+      if (key === "_i") {
+        return `<td class="text-slate-400">${index + 1}</td>`;
+      }
 
-    setStatus(`✅ Loaded ${f(info.total_transactions)} rows | Fraud: ${info.fraud_rate}% | Accuracy: ${mt.train_accuracy?(mt.train_accuracy*100).toFixed(1)+'%':'N/A'} | F1: ${mt.fraud_f1||'N/A'}`, 'ok');
-    goTo('datasetBox');
-  }catch(e){
-    document.getElementById('uploadStatus').textContent='❌ Failed';
-    setStatus('Upload failed: '+e.message,'error');
+      if (key === "fraud_flag" || key === "fraud") {
+        const fraud = row[key] === 1 || row[key] === "1" || row[key] === true;
+        return `<td>${fraud ? '<span class="bfraud">Fraud</span>' : '<span class="blegit">Legit</span>'}</td>`;
+      }
+
+      if (key === "risk_reason") {
+        return `<td class="text-amber-700">${row[key] || ""}</td>`;
+      }
+
+      if (key === "risk_score") {
+        return `<td><span class="brisk">${row[key] ?? "--"}</span></td>`;
+      }
+
+      if (key === "running_total" || key === "amount") {
+        return `<td class="font-semibold">${money(row[key])}</td>`;
+      }
+
+      return `<td>${row[key] ?? ""}</td>`;
+    }).join("");
+
+    return `<tr>${cells}</tr>`;
+  }).join("");
+
+  return `<div class="tscroll"><table class="dtable"><thead><tr>${headers}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+async function uploadDataset(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  document.getElementById("dropLabel").textContent = file.name;
+  document.getElementById("uploadStatus").textContent = "Uploading dataset...";
+  setStatus("Uploading and preprocessing dataset...");
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  try {
+    const res = await fetch(`${API}/upload-dataset`, { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Upload failed");
+
+    const info = data.dataset_info || {};
+    const stats = info.amount_stats || {};
+    const model = data.model_training || {};
+
+    document.getElementById("uploadStatus").textContent = "Dataset ready";
+    document.getElementById("preInfo").classList.add("hidden");
+    document.getElementById("statsArea").classList.remove("hidden");
+
+    document.getElementById("s_total").textContent = formatNumber(info.total_transactions);
+    document.getElementById("s_fraud").textContent = formatNumber(info.fraud_transactions);
+    document.getElementById("s_legit").textContent = formatNumber(info.legitimate_transactions);
+    document.getElementById("s_rate").textContent = `${info.fraud_rate ?? "--"}%`;
+    document.getElementById("s_mean").textContent = money(stats.mean);
+    document.getElementById("s_min").textContent = money(stats.min);
+    document.getElementById("s_max").textContent = money(stats.max);
+    document.getElementById("s_med").textContent = money(stats.median);
+    document.getElementById("s_std").textContent = money(stats.std);
+
+    const methods = info.payment_methods || {};
+    const values = Object.values(methods);
+    const maxValue = values.length ? Math.max(...values, 1) : 1;
+    const colors = ["#d97706", "#0f766e", "#0284c7", "#7c3aed", "#dc2626", "#16a34a"];
+
+    document.getElementById("pmBars").innerHTML = Object.entries(methods).length
+      ? Object.entries(methods)
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, value], index) => `
+            <div class="bar-row">
+              <div class="bar-label">${name}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${((value / maxValue) * 100).toFixed(1)}%;background:${colors[index % colors.length]};"></div>
+              </div>
+              <div class="bar-val">${formatNumber(value)}</div>
+            </div>`)
+          .join("")
+      : '<p class="text-sm text-slate-500">No payment method data available.</p>';
+
+    const columns = info.columns_detected || {};
+    document.getElementById("colMap").innerHTML = Object.keys(columns).length
+      ? `<table class="w-full text-sm"><tbody>${Object.entries(columns).map(([original, standardized]) => `
+          <tr class="border-b border-slate-200 last:border-b-0">
+            <td class="py-2 pr-3 text-slate-500">${original}</td>
+            <td class="py-2 pr-3 text-slate-400">to</td>
+            <td class="py-2 font-semibold text-amber-700">${standardized}</td>
+          </tr>`).join("")}</tbody></table>`
+      : '<p class="text-sm text-slate-500">Columns were generated automatically.</p>';
+
+    const accuracy = model.train_accuracy ? `${(model.train_accuracy * 100).toFixed(1)}%` : "N/A";
+    setStatus(`Loaded ${formatNumber(info.total_transactions)} rows. Fraud rate: ${info.fraud_rate ?? "N/A"}%. Model accuracy: ${accuracy}. F1: ${model.fraud_f1 || "N/A"}.`, "ok");
+    goTo("datasetBox");
+  } catch (error) {
+    document.getElementById("uploadStatus").textContent = "Upload failed";
+    setStatus(`Upload failed: ${error.message}`, "error");
   }
 }
 
-/* ── DIVIDE & CONQUER ──────────────────────── */
-async function runDivide(){
-  loading('divideResult'); setStatus('Running Divide & Conquer…');
-  try{
-    const res=await fetch(`${API}/divide-conquer`);
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.detail);
-    const orig=data.original_sample||[], ms=data.merge_sorted_sample||[], qs=data.quick_sorted_sample||[];
-    const n=Math.max(orig.length,ms.length,qs.length);
-    let rows='';
-    for(let i=0;i<n;i++){
-      const isOut=ms[i]!==undefined&&ms[i]>data.outlier_threshold;
-      rows+=`<tr${isOut?' style="background:#fff1f2;"':''}>
-        <td class="text-gray-400">${i+1}</td>
-        <td>${orig[i]!==undefined?'₹'+f(orig[i]):''}</td>
-        <td class="text-green-700 font-semibold">${ms[i]!==undefined?'₹'+f(ms[i]):''}</td>
-        <td class="text-blue-700 font-semibold">${qs[i]!==undefined?'₹'+f(qs[i]):''}</td>
-        <td>${isOut?'<span class="bfraud">Outlier</span>':'<span class="blegit">Normal</span>'}</td>
+async function runDivide() {
+  loading("divideResult");
+  setStatus("Running Divide and Conquer...");
+
+  try {
+    const res = await fetch(`${API}/divide-conquer`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    const original = data.original_sample || [];
+    const mergeSorted = data.merge_sorted_sample || [];
+    const quickSorted = data.quick_sorted_sample || [];
+    const count = Math.max(original.length, mergeSorted.length, quickSorted.length);
+    let rows = "";
+
+    for (let i = 0; i < count; i += 1) {
+      const outlier = mergeSorted[i] !== undefined && mergeSorted[i] > data.outlier_threshold;
+      rows += `<tr${outlier ? ' style="background:#fff1f2;"' : ""}>
+        <td class="text-slate-400">${i + 1}</td>
+        <td>${original[i] !== undefined ? money(original[i]) : ""}</td>
+        <td class="font-semibold text-emerald-700">${mergeSorted[i] !== undefined ? money(mergeSorted[i]) : ""}</td>
+        <td class="font-semibold text-sky-700">${quickSorted[i] !== undefined ? money(quickSorted[i]) : ""}</td>
+        <td>${outlier ? '<span class="bfraud">Outlier</span>' : '<span class="blegit">Normal</span>'}</td>
       </tr>`;
     }
-    document.getElementById('divideResult').innerHTML=`
-      <div class="grid grid-cols-3 gap-3 mb-4">
-        <div class="stat-card bg-indigo-50"><div class="stat-num text-indigo-700">${f(data.total_processed)}</div><div class="stat-lbl text-indigo-400">Processed</div></div>
-        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${data.outlier_count}</div><div class="stat-lbl text-red-400">Outliers Found</div></div>
-        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-700">₹${f(data.outlier_threshold)}</div><div class="stat-lbl text-yellow-500">Threshold (μ+2σ)</div></div>
+
+    document.getElementById("divideResult").innerHTML = `
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${formatNumber(data.total_processed)}</div><div class="stat-lbl text-slate-500">Processed</div></div>
+        <div class="stat-card bg-rose-50"><div class="stat-num text-rose-700">${formatNumber(data.outlier_count)}</div><div class="stat-lbl text-rose-500">Outliers Found</div></div>
+        <div class="stat-card bg-amber-50"><div class="stat-num text-amber-700">${money(data.outlier_threshold)}</div><div class="stat-lbl text-amber-500">Threshold</div></div>
       </div>
-      <div class="sec">Merge Sort vs Quick Sort — ${n} Values (Red rows = Outlier above threshold)</div>
+      <div class="sec">Sorted Samples</div>
       <div class="tscroll"><table class="dtable">
-        <thead><tr><th>#</th><th>Original</th><th>Merge Sorted ↑</th><th>Quick Sorted ↑</th><th>Flag</th></tr></thead>
+        <thead><tr><th>#</th><th>Original</th><th>Merge Sorted</th><th>Quick Sorted</th><th>Flag</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
-      <div class="sec" style="margin-top:12px;">Outlier Transactions</div>
-      ${txTable(data.outlier_transactions,['Sender','Receiver','Amount','Method','Status'],['sender','receiver','amount','payment_method','fraud_flag'])}
+      <div class="sec">Outlier Transactions</div>
+      ${txTable(data.outlier_transactions, ["Sender", "Receiver", "Amount", "Method", "Status"], ["sender", "receiver", "amount", "payment_method", "fraud_flag"])}
     `;
-    setStatus('Divide & Conquer done. Outliers: '+data.outlier_count,'ok');
-  }catch(e){document.getElementById('divideResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
+
+    setStatus(`Divide and Conquer complete. Outliers found: ${formatNumber(data.outlier_count)}.`, "ok");
+  } catch (error) {
+    document.getElementById("divideResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
+    setStatus(`Divide and Conquer failed: ${error.message}`, "error");
+  }
 }
 
-/* ── BINARY SEARCH ─────────────────────────── */
-async function runBinary(){
-  const val=document.getElementById('searchAmt').value;
-  if(!val){alert('Enter an amount.');return;}
-  loading('binaryResult'); setStatus('Running Binary Search…');
-  try{
-    const res=await fetch(`${API}/search?value=${val}`);
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.detail);
-    const target=parseFloat(val), found=data.found, nearby=data.nearby||[];
-    const chips=nearby.map(v=>{
-      const isT=Math.abs(v-target)<0.01;
-      return `<span style="display:inline-block;padding:3px 10px;border-radius:4px;margin:3px;font-size:12px;font-variant-numeric:tabular-nums;background:${isT?'#dcfce7':'#e0e7ff'};color:${isT?'#166534':'#3730a3'};font-weight:${isT?'700':'400'};">${isT?'▶ ':''}₹${f(v)}</span>`;
-    }).join('');
-    const steps=[
-      {s:'Step 1',t:'Sort all amounts — Merge Sort',r:'Sorted array ready'},
-      {s:'Step 2',t:'Set low = 0, high = n−1',r:'Search space = full array'},
-      {s:'Step 3',t:'mid = ⌊(low+high)/2⌋ → compare with ₹'+f(target),r:found?'Match at index '+data.index:'Not in dataset'},
-      {s:'Step 4',t:found?'Walk left → first occurrence':'low > high → stop',r:found?'Found at index '+data.index:'Not found — O(log n) done'},
+async function runBinary() {
+  const value = document.getElementById("searchAmt").value;
+  if (!value) {
+    alert("Enter an amount to search.");
+    return;
+  }
+
+  loading("binaryResult");
+  setStatus("Running Binary Search...");
+
+  try {
+    const res = await fetch(`${API}/search?value=${value}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    const target = Number(value);
+    const nearby = data.nearby || [];
+    const chips = nearby.length
+      ? nearby.map((n) => {
+          const active = Math.abs(Number(n) - target) < 0.01;
+          return `<span class="inline-flex rounded-full px-3 py-2 text-xs font-semibold ${active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}">${active ? "Match: " : ""}${money(n)}</span>`;
+        }).join(" ")
+      : '<span class="text-sm text-slate-500">No nearby values available.</span>';
+
+    const steps = [
+      { step: "Step 1", text: "Sort the amount list before searching.", result: "Binary search needs ordered data." },
+      { step: "Step 2", text: "Set low and high pointers.", result: "Search starts across the full array." },
+      { step: "Step 3", text: `Compare middle value against ${money(target)}.`, result: data.found ? `Match at index ${data.index}.` : "Shift boundaries based on comparison." },
+      { step: "Step 4", text: data.found ? "Return the matching position." : "Stop when low exceeds high.", result: data.found ? "Target amount found." : "Target amount not present." }
     ];
-    document.getElementById('binaryResult').innerHTML=`
-      <div class="grid grid-cols-3 gap-3 mb-4">
-        <div class="stat-card bg-indigo-50"><div class="stat-num text-indigo-700">₹${f(target)}</div><div class="stat-lbl text-indigo-400">Search Value</div></div>
-        <div class="stat-card ${found?'bg-green-50':'bg-red-50'}">
-          <div class="stat-num ${found?'text-green-600':'text-red-600'}">${found?'✓ Found':'✗ Not Found'}</div>
-          <div class="stat-lbl ${found?'text-green-400':'text-red-400'}">Result</div>
-        </div>
-        <div class="stat-card bg-blue-50"><div class="stat-num text-blue-700">${found?data.index:'—'}</div><div class="stat-lbl text-blue-400">Array Index</div></div>
+
+    document.getElementById("binaryResult").innerHTML = `
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="stat-card bg-sky-50"><div class="stat-num text-sky-700">${money(target)}</div><div class="stat-lbl text-sky-500">Search Value</div></div>
+        <div class="stat-card ${data.found ? "bg-emerald-50" : "bg-rose-50"}"><div class="stat-num ${data.found ? "text-emerald-700" : "text-rose-700"}">${data.found ? "Found" : "Not Found"}</div><div class="stat-lbl ${data.found ? "text-emerald-500" : "text-rose-500"}">Result</div></div>
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${data.found ? data.index : "--"}</div><div class="stat-lbl text-slate-500">Array Index</div></div>
       </div>
-      <div class="sec">Nearby Values in Sorted Array</div>
-      <div style="padding:6px 0;">${chips||'<span class="text-xs text-gray-400">No nearby values.</span>'}</div>
+      <div class="sec">Nearby Values</div>
+      <div class="flex flex-wrap gap-2">${chips}</div>
       <div class="sec">Search Steps</div>
-      <div style="background:#f8faff;border:1px solid #e0e7ff;border-radius:6px;padding:12px;">
-        ${steps.map(s=>`<div class="step-row"><span class="step-tag">${s.s}</span><div><div style="font-size:12px;color:#374151;">${s.t}</div><div style="font-size:11px;color:#6366f1;margin-top:1px;">${s.r}</div></div></div>`).join('')}
-      </div>`;
-    setStatus('Binary Search done — '+(found?'Found at index '+data.index:'Not found'),'ok');
-  }catch(e){document.getElementById('binaryResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
-}
-
-/* ── GREEDY ────────────────────────────────── */
-async function runGreedy(){
-  loading('greedyResult'); setStatus('Running Greedy detection…');
-  try{
-    const res=await fetch(`${API}/greedy`);
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.detail);
-    const list=data.top_suspicious||[];
-    const top15=list.slice(0,15);
-    const maxS=Math.max(...top15.map(r=>r.risk_score||1),1);
-    const rColors={'High-value anomaly (> mean + 2σ)':'#ef4444','Account emptied (balance → 0)':'#7c3aed','Balance mismatch (transfer ≠ balance change)':'#ea580c','High-frequency sender (top 5% transaction count)':'#d97706','Suspicious round-number large amount':'#0891b2'};
-    const bars=top15.map(r=>`
-      <div class="bar-row">
-        <div class="bar-label" title="${r.sender}">${r.sender}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${((r.risk_score||1)/maxS*100).toFixed(1)}%;background:${rColors[r.risk_reason]||'#6366f1'};"></div></div>
-        <div class="bar-val">Score ${r.risk_score}</div>
-      </div>`).join('');
-    document.getElementById('greedyResult').innerHTML=`
-      <div class="grid grid-cols-4 gap-3 mb-4">
-        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${f(data.suspicious_count)}</div><div class="stat-lbl text-red-400">Suspicious</div></div>
-        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-700">₹${f(data.threshold)}</div><div class="stat-lbl text-yellow-500">Threshold (μ+2σ)</div></div>
-        <div class="stat-card bg-blue-50"><div class="stat-num text-blue-700">₹${f(data.mean)}</div><div class="stat-lbl text-blue-400">Mean (μ)</div></div>
-        <div class="stat-card bg-purple-50"><div class="stat-num text-purple-700">₹${f(data.std_dev)}</div><div class="stat-lbl text-purple-400">Std Dev (σ)</div></div>
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        ${steps.map((item) => `<div class="step-row"><span class="step-tag">${item.step}</span><div><div class="text-sm text-slate-700">${item.text}</div><div class="mt-1 text-xs text-slate-500">${item.result}</div></div></div>`).join("")}
       </div>
-      <div class="sec">Risk Score by Sender — Top 15</div>
-      ${bars}
-      <div class="sec" style="margin-top:12px;">All Suspicious Transactions</div>
-      ${txTable(list,['#','Sender','Receiver','Amount','Method','Risk Reason','Score','Status','Running Total'],['_i','sender','receiver','amount','payment_method','risk_reason','risk_score','fraud_flag','running_total'])}`;
-    setStatus('Greedy done. Suspicious: '+data.suspicious_count,'ok');
-  }catch(e){document.getElementById('greedyResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
-}
-
-/* ── DYNAMIC PROGRAMMING ───────────────────── */
-async function runDynamic(){
-  loading('dynamicResult'); setStatus('Running Dynamic Programming…');
-  try{
-    const res=await fetch(`${API}/dynamic`);
-    const data=await res.json();
-    if(!res.ok) throw new Error(data.detail);
-    const ma=data.max_subarray||{}, lis=data.longest_increasing_subsequence||{};
-    const winTx=ma.transactions||[];
-    const maxA=Math.max(...winTx.map(r=>r.amount||0),1);
-    const winBars=winTx.map((r,i)=>`
-      <div class="bar-row">
-        <div class="bar-label text-xs" title="${r.sender}">${i+1}. ${r.sender}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${(r.amount/maxA*100).toFixed(1)}%;background:${r.fraud_flag?'#ef4444':'#10b981'};"></div></div>
-        <div style="font-size:11px;width:100px;text-align:right;font-variant-numeric:tabular-nums;">₹${f(r.amount)} ${r.fraud_flag?'<span class="bfraud">F</span>':''}</div>
-      </div>`).join('');
-    const lisTx=lis.transactions||[];
-    const lisChain=lisTx.map((r,i)=>`
-      <span class="lis-item">
-        <span class="lis-amt" title="${r.sender}">₹${f(r.amount)}${r.fraud_flag?' 🚨':''}</span>
-        <span style="font-size:10px;color:#7c3aed;margin-top:2px;">${(r.sender||'').substring(0,9)}</span>
-      </span>${i<lisTx.length-1?'<span class="lis-arr">→</span>':''}`).join('');
-    document.getElementById('dynamicResult').innerHTML=`
-      <div class="sec">Kadane's Algorithm — Maximum Burst Window</div>
-      <div class="grid grid-cols-4 gap-3 mb-4">
-        <div class="stat-card bg-yellow-50"><div class="stat-num text-yellow-700">₹${f(ma.sum)}</div><div class="stat-lbl text-yellow-500">Max Sum</div></div>
-        <div class="stat-card bg-orange-50"><div class="stat-num text-orange-600">${ma.start_index}</div><div class="stat-lbl text-orange-400">Start Index</div></div>
-        <div class="stat-card bg-orange-50"><div class="stat-num text-orange-600">${ma.end_index}</div><div class="stat-lbl text-orange-400">End Index</div></div>
-        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${ma.fraud_in_window||0}</div><div class="stat-lbl text-red-400">Fraud in Window</div></div>
-      </div>
-      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">Window: index ${ma.start_index}→${ma.end_index} | ${ma.window_length} transactions | <span style="color:#ef4444;">Red=Fraud</span> <span style="color:#10b981;">Green=Legit</span></div>
-      ${winBars}
-      ${txTable(winTx,['#','Sender','Receiver','Amount','Method','Status'],['_i','sender','receiver','amount','payment_method','fraud_flag'])}
-
-      <hr class="my-5 border-indigo-100"/>
-
-      <div class="sec">LIS — Longest Escalating Chain</div>
-      <div class="grid grid-cols-3 gap-3 mb-4">
-        <div class="stat-card bg-purple-50"><div class="stat-num text-purple-700">${lis.length||0}</div><div class="stat-lbl text-purple-400">Chain Length</div></div>
-        <div class="stat-card bg-red-50"><div class="stat-num text-red-600">${lis.fraud_in_lis||0}</div><div class="stat-lbl text-red-400">Fraud in Chain</div></div>
-        <div class="stat-card bg-indigo-50"><div class="stat-num text-indigo-700">${f(data.sample_size)}</div><div class="stat-lbl text-indigo-400">Processed</div></div>
-      </div>
-      <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">Each amount strictly greater than previous. 🚨 = Fraud transaction in chain.</div>
-      <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:14px;display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:12px;">
-        ${lisChain||'<span class="text-xs text-gray-400">No escalating chain found.</span>'}
-      </div>
-      ${txTable(lisTx,['#','Index','Sender','Receiver','Amount','Method','Status'],['_i','index','sender','receiver','amount','payment_method','fraud_flag'])}
     `;
-    setStatus('Dynamic Programming done. LIS length: '+lis.length,'ok');
-  }catch(e){document.getElementById('dynamicResult').innerHTML=`<p class="text-red-500 text-sm">❌ ${e.message}</p>`;setStatus('Error','error');}
+
+    setStatus(`Binary Search complete. ${data.found ? `Amount found at index ${data.index}.` : "Amount not found in dataset."}`, "ok");
+  } catch (error) {
+    document.getElementById("binaryResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
+    setStatus(`Binary Search failed: ${error.message}`, "error");
+  }
+}
+
+async function runGreedy() {
+  loading("greedyResult");
+  setStatus("Running Greedy analysis...");
+
+  try {
+    const res = await fetch(`${API}/greedy`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    const list = data.top_suspicious || [];
+    const top15 = list.slice(0, 15);
+    const maxScore = top15.length ? Math.max(...top15.map((row) => row.risk_score || 1), 1) : 1;
+    const colors = {
+      "High-value anomaly (> mean + 2*std)": "#dc2626",
+      "Account emptied (balance -> 0)": "#7c3aed",
+      "Balance mismatch (transfer != balance change)": "#ea580c",
+      "High-frequency sender (top 5% transaction count)": "#d97706",
+      "Suspicious round-number large amount": "#0284c7"
+    };
+
+    const bars = top15.length
+      ? top15.map((row) => `
+          <div class="bar-row">
+            <div class="bar-label" title="${row.sender || ""}">${row.sender || "--"}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(((row.risk_score || 1) / maxScore) * 100).toFixed(1)}%;background:${colors[row.risk_reason] || "#475569"};"></div></div>
+            <div class="bar-val">Score ${row.risk_score ?? "--"}</div>
+          </div>`).join("")
+      : '<p class="text-sm text-slate-500">No suspicious transactions returned.</p>';
+
+    document.getElementById("greedyResult").innerHTML = `
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="stat-card bg-rose-50"><div class="stat-num text-rose-700">${formatNumber(data.suspicious_count)}</div><div class="stat-lbl text-rose-500">Suspicious</div></div>
+        <div class="stat-card bg-amber-50"><div class="stat-num text-amber-700">${money(data.threshold)}</div><div class="stat-lbl text-amber-500">Threshold</div></div>
+        <div class="stat-card bg-sky-50"><div class="stat-num text-sky-700">${money(data.mean)}</div><div class="stat-lbl text-sky-500">Mean</div></div>
+        <div class="stat-card bg-violet-50"><div class="stat-num text-violet-700">${money(data.std_dev)}</div><div class="stat-lbl text-violet-500">Std Dev</div></div>
+      </div>
+      <div class="sec">Top Risk Scores by Sender</div>
+      <div class="rounded-2xl bg-slate-50 p-4">${bars}</div>
+      <div class="sec">Suspicious Transactions</div>
+      ${txTable(list, ["#", "Sender", "Receiver", "Amount", "Method", "Risk Reason", "Score", "Status", "Running Total"], ["_i", "sender", "receiver", "amount", "payment_method", "risk_reason", "risk_score", "fraud_flag", "running_total"])}
+    `;
+
+    setStatus(`Greedy analysis complete. Suspicious transactions: ${formatNumber(data.suspicious_count)}.`, "ok");
+  } catch (error) {
+    document.getElementById("greedyResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
+    setStatus(`Greedy analysis failed: ${error.message}`, "error");
+  }
+}
+
+async function runDynamic() {
+  loading("dynamicResult");
+  setStatus("Running Dynamic Programming...");
+
+  try {
+    const res = await fetch(`${API}/dynamic`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    const maxSubarray = data.max_subarray || {};
+    const lis = data.longest_increasing_subsequence || {};
+    const windowTx = maxSubarray.transactions || [];
+    const lisTx = lis.transactions || [];
+    const maxAmount = windowTx.length ? Math.max(...windowTx.map((row) => row.amount || 0), 1) : 1;
+
+    const windowBars = windowTx.length
+      ? windowTx.map((row, index) => `
+          <div class="bar-row">
+            <div class="bar-label">${index + 1}. ${row.sender || "--"}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(((row.amount || 0) / maxAmount) * 100).toFixed(1)}%;background:${row.fraud_flag ? "#dc2626" : "#16a34a"};"></div></div>
+            <div class="bar-val">${money(row.amount)}</div>
+          </div>`).join("")
+      : '<p class="text-sm text-slate-500">No maximum subarray transactions returned.</p>';
+
+    const lisChain = lisTx.length
+      ? lisTx.map((row, index) => `
+          <span class="lis-item">
+            <span class="lis-amt">${money(row.amount)}${row.fraud_flag ? " Fraud" : ""}</span>
+            <span class="text-[0.65rem] uppercase tracking-[0.12em] text-slate-500">${(row.sender || "--").slice(0, 10)}</span>
+          </span>${index < lisTx.length - 1 ? '<span class="lis-arr">></span>' : ""}`).join("")
+      : '<span class="text-sm text-slate-500">No increasing chain found.</span>';
+
+    document.getElementById("dynamicResult").innerHTML = `
+      <div class="sec">Maximum Burst Window</div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="stat-card bg-amber-50"><div class="stat-num text-amber-700">${money(maxSubarray.sum)}</div><div class="stat-lbl text-amber-500">Max Sum</div></div>
+        <div class="stat-card bg-orange-50"><div class="stat-num text-orange-700">${maxSubarray.start_index ?? "--"}</div><div class="stat-lbl text-orange-500">Start Index</div></div>
+        <div class="stat-card bg-orange-50"><div class="stat-num text-orange-700">${maxSubarray.end_index ?? "--"}</div><div class="stat-lbl text-orange-500">End Index</div></div>
+        <div class="stat-card bg-rose-50"><div class="stat-num text-rose-700">${formatNumber(maxSubarray.fraud_in_window || 0)}</div><div class="stat-lbl text-rose-500">Fraud in Window</div></div>
+      </div>
+      <div class="mt-4 rounded-2xl bg-slate-50 p-4">${windowBars}</div>
+      <div class="mt-4">${txTable(windowTx, ["#", "Sender", "Receiver", "Amount", "Method", "Status"], ["_i", "sender", "receiver", "amount", "payment_method", "fraud_flag"])}</div>
+
+      <hr class="my-6 border-slate-200">
+
+      <div class="sec">Longest Escalating Chain</div>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="stat-card bg-violet-50"><div class="stat-num text-violet-700">${formatNumber(lis.length || 0)}</div><div class="stat-lbl text-violet-500">Chain Length</div></div>
+        <div class="stat-card bg-rose-50"><div class="stat-num text-rose-700">${formatNumber(lis.fraud_in_lis || 0)}</div><div class="stat-lbl text-rose-500">Fraud in Chain</div></div>
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${formatNumber(data.sample_size)}</div><div class="stat-lbl text-slate-500">Processed</div></div>
+      </div>
+      <div class="mt-4 rounded-2xl border border-violet-100 bg-violet-50 p-4">
+        <div class="flex flex-wrap items-center gap-2">${lisChain}</div>
+      </div>
+      <div class="mt-4">${txTable(lisTx, ["#", "Index", "Sender", "Receiver", "Amount", "Method", "Status"], ["_i", "index", "sender", "receiver", "amount", "payment_method", "fraud_flag"])}</div>
+    `;
+
+    setStatus(`Dynamic Programming complete. LIS length: ${formatNumber(lis.length || 0)}.`, "ok");
+  } catch (error) {
+    document.getElementById("dynamicResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
+    setStatus(`Dynamic Programming failed: ${error.message}`, "error");
+  }
 }
 </script>
 </body>

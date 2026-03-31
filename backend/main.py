@@ -1,19 +1,30 @@
 # backend/main.py
-import os, shutil
+import os
+import shutil
+from pathlib import Path
+
 from fastapi import FastAPI, UploadFile, File, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from services.fraud_service import load_dataset, get_df, is_loaded, get_dataset_info, get_column_map
-from ai_model import get_model
-from algorithms.divide_conquer import run_divide_conquer, binary_search, merge_sort
-from algorithms.greedy import detect_suspicious_greedy
-from algorithms.dynamic_programming import run_dynamic_programming
+try:
+    from .services.fraud_service import load_dataset, get_df, is_loaded, get_dataset_info
+    from .ai_model import get_model
+    from .algorithms.divide_conquer import run_divide_conquer
+    from .algorithms.greedy import detect_suspicious_greedy
+    from .algorithms.dynamic_programming import run_dynamic_programming
+except ImportError:
+    from services.fraud_service import load_dataset, get_df, is_loaded, get_dataset_info
+    from ai_model import get_model
+    from algorithms.divide_conquer import run_divide_conquer, binary_search
+    from algorithms.greedy import detect_suspicious_greedy
+    from algorithms.dynamic_programming import run_dynamic_programming
 
 app = FastAPI(title="Fraud Detection ADSA")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "dataset", "uploads")
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def _require():
@@ -21,9 +32,21 @@ def _require():
         raise HTTPException(status_code=400, detail="No dataset loaded. Upload a CSV first.")
     return get_df()
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
-    return {"message": "Fraud Detection ADSA API running."}
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+@app.get("/dashboard.html", include_in_schema=False)
+def dashboard():
+    return FileResponse(FRONTEND_DIR / "dashboard.html")
+
+@app.get("/index.html", include_in_schema=False)
+def index():
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 @app.post("/upload-dataset")
 async def upload_dataset(file: UploadFile = File(...)):
@@ -65,18 +88,6 @@ def divide_conquer():
     df = _require()
     return run_divide_conquer(df)
 
-@app.get("/search")
-def search(value: float = Query(...)):
-    df = _require()
-    amounts = sorted([round(float(x), 2) for x in df["amount"].tolist()])
-    idx = binary_search(amounts, round(value, 2))
-    return {
-        "search_value": value,
-        "found": idx != -1,
-        "index": idx,
-        "nearby": amounts[max(0, idx-2): idx+3] if idx != -1 else [],
-    }
-
 @app.get("/greedy")
 def greedy():
     df = _require()
@@ -86,3 +97,8 @@ def greedy():
 def dynamic():
     df = _require()
     return run_dynamic_programming(df)
+
+import uvicorn
+
+if __name__ == "__main__":
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)

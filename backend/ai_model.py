@@ -69,7 +69,10 @@ class FraudDetectionModel:
     def predict_transaction(self, sender, receiver, payment_method, amount):
         if not self.trained:
             return {"error": "Model not trained. Upload dataset first."}
-        from services.fraud_service import get_df
+        try:
+            from .services.fraud_service import get_df
+        except ImportError:
+            from services.fraud_service import get_df
         df = get_df()
         mean_amt = df["amount"].mean() if df is not None else float(amount)
         std_amt = (df["amount"].std()+1e-9) if df is not None else 1.0

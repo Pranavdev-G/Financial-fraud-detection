@@ -38,8 +38,9 @@ body { min-height: 100vh; }
 .dtable tr:hover td { background:#fffcf7; }
 .dtable tr:last-child td { border-bottom:none; }
 .tscroll { max-height:21rem; overflow:auto; border:1px solid #eee7dc; border-radius:1rem; }
-.tscroll::-webkit-scrollbar,#mainContent::-webkit-scrollbar { width:.5rem; height:.5rem; }
-.tscroll::-webkit-scrollbar-thumb,#mainContent::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+.tscroll::-webkit-scrollbar,#mainContent::-webkit-scrollbar,#sidebarContent::-webkit-scrollbar { width:.5rem; height:.5rem; }
+.tscroll::-webkit-scrollbar-thumb,#mainContent::-webkit-scrollbar-thumb,#sidebarContent::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+.sidebar-scroll { scrollbar-color:rgba(203,213,225,.8) transparent; }
 .bfraud,.blegit,.brisk { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:.22rem .55rem; font-size:.72rem; font-weight:700; }
 .bfraud { background:#fee2e2; color:#b91c1c; }
 .blegit { background:#dcfce7; color:#166534; }
@@ -62,9 +63,9 @@ body { min-height: 100vh; }
 </head>
 <body class="bg-[linear-gradient(180deg,_#f8f5ef,_#f2ede4)] text-slate-900">
   <div class="lg:grid lg:min-h-screen lg:grid-cols-[320px_minmax(0,1fr)]">
-    <aside class="relative overflow-hidden bg-[linear-gradient(180deg,_#14213d,_#1d3557)] px-6 py-8 text-white lg:sticky lg:top-0 lg:h-screen">
+    <aside class="relative bg-[linear-gradient(180deg,_#14213d,_#1d3557)] px-6 py-8 text-white lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
       <div class="absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.22),_transparent_58%)]"></div>
-      <div class="relative z-10">
+      <div id="sidebarContent" class="relative z-10 sidebar-scroll lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:pr-2">
         <div class="mb-8">
           <p class="text-xs uppercase tracking-[0.32em] text-amber-200/80">Fraud Detection</p>
           <h1 class="mt-3 text-3xl font-black leading-tight">ADSA Dashboard</h1>
@@ -92,7 +93,6 @@ Upload CSV
           <div class="mt-4 space-y-2">
             <button onclick="goTo('datasetBox')" class="navbtn">Dataset Overview</button>
             <button onclick="goTo('divideBox')" class="navbtn">Divide and Conquer</button>
-            <button onclick="goTo('binaryBox')" class="navbtn">Binary Search</button>
             <button onclick="goTo('greedyBox')" class="navbtn">Greedy Method</button>
             <button onclick="goTo('dynamicBox')" class="navbtn">Dynamic Programming</button>
           </div>
@@ -112,9 +112,6 @@ Upload CSV
             <div>
               <p class="text-xs uppercase tracking-[0.32em] text-slate-500">Fraud Analytics Workspace</p>
               <h2 class="mt-2 text-3xl font-black text-ink">Transaction intelligence dashboard</h2>
-              <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
-                Run ADSA-driven analysis on uploaded transaction data and review outliers, matches, suspicious behavior, and escalation patterns.
-              </p>
             </div>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div class="rounded-2xl bg-white p-4 text-center shadow-sm"><div class="text-xl font-black text-amber-600">4</div><div class="mt-1 text-[0.68rem] uppercase tracking-[0.16em] text-slate-500">Algorithms</div></div>
@@ -179,25 +176,10 @@ Upload CSV
           </div>
           <div id="divideResult"><p class="text-sm italic text-slate-500">Run the algorithm to compare sorting output and detect outlier transactions.</p></div>
         </section>
-
-        <section id="binaryBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
-          <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 03</p>
-              <h3 class="mt-2 text-2xl font-black text-ink">Binary Search</h3>
-            </div>
-            <div class="flex flex-col gap-3 sm:flex-row">
-              <input type="number" id="searchAmt" placeholder="Enter amount" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-500">
-              <button onclick="runBinary()" class="rounded-2xl bg-sky-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-sky-800">Search Amount</button>
-            </div>
-          </div>
-          <div id="binaryResult"><p class="text-sm italic text-slate-500">Enter an amount and run binary search to inspect sorted-array matches.</p></div>
-        </section>
-
         <section id="greedyBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
           <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 04</p>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 03</p>
               <h3 class="mt-2 text-2xl font-black text-ink">Greedy Method</h3>
             </div>
             <button onclick="runGreedy()" class="rounded-2xl bg-rose-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-rose-700">Run Analysis</button>
@@ -208,7 +190,7 @@ Upload CSV
         <section id="dynamicBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
           <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 05</p>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 04</p>
               <h3 class="mt-2 text-2xl font-black text-ink">Dynamic Programming</h3>
             </div>
             <button onclick="runDynamic()" class="rounded-2xl bg-violet-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-800">Run Analysis</button>
@@ -417,58 +399,6 @@ async function runDivide() {
   } catch (error) {
     document.getElementById("divideResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
     setStatus(`Divide and Conquer failed: ${error.message}`, "error");
-  }
-}
-
-async function runBinary() {
-  const value = document.getElementById("searchAmt").value;
-  if (!value) {
-    alert("Enter an amount to search.");
-    return;
-  }
-
-  loading("binaryResult");
-  setStatus("Running Binary Search...");
-
-  try {
-    const res = await fetch(`${API}/search?value=${value}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Request failed");
-
-    const target = Number(value);
-    const nearby = data.nearby || [];
-    const chips = nearby.length
-      ? nearby.map((n) => {
-          const active = Math.abs(Number(n) - target) < 0.01;
-          return `<span class="inline-flex rounded-full px-3 py-2 text-xs font-semibold ${active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}">${active ? "Match: " : ""}${money(n)}</span>`;
-        }).join(" ")
-      : '<span class="text-sm text-slate-500">No nearby values available.</span>';
-
-    const steps = [
-      { step: "Step 1", text: "Sort the amount list before searching.", result: "Binary search needs ordered data." },
-      { step: "Step 2", text: "Set low and high pointers.", result: "Search starts across the full array." },
-      { step: "Step 3", text: `Compare middle value against ${money(target)}.`, result: data.found ? `Match at index ${data.index}.` : "Shift boundaries based on comparison." },
-      { step: "Step 4", text: data.found ? "Return the matching position." : "Stop when low exceeds high.", result: data.found ? "Target amount found." : "Target amount not present." }
-    ];
-
-    document.getElementById("binaryResult").innerHTML = `
-      <div class="grid gap-3 sm:grid-cols-3">
-        <div class="stat-card bg-sky-50"><div class="stat-num text-sky-700">${money(target)}</div><div class="stat-lbl text-sky-500">Search Value</div></div>
-        <div class="stat-card ${data.found ? "bg-emerald-50" : "bg-rose-50"}"><div class="stat-num ${data.found ? "text-emerald-700" : "text-rose-700"}">${data.found ? "Found" : "Not Found"}</div><div class="stat-lbl ${data.found ? "text-emerald-500" : "text-rose-500"}">Result</div></div>
-        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${data.found ? data.index : "--"}</div><div class="stat-lbl text-slate-500">Array Index</div></div>
-      </div>
-      <div class="sec">Nearby Values</div>
-      <div class="flex flex-wrap gap-2">${chips}</div>
-      <div class="sec">Search Steps</div>
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        ${steps.map((item) => `<div class="step-row"><span class="step-tag">${item.step}</span><div><div class="text-sm text-slate-700">${item.text}</div><div class="mt-1 text-xs text-slate-500">${item.result}</div></div></div>`).join("")}
-      </div>
-    `;
-
-    setStatus(`Binary Search complete. ${data.found ? `Amount found at index ${data.index}.` : "Amount not found in dataset."}`, "ok");
-  } catch (error) {
-    document.getElementById("binaryResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
-    setStatus(`Binary Search failed: ${error.message}`, "error");
   }
 }
 

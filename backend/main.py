@@ -13,12 +13,14 @@ try:
     from .algorithms.divide_conquer import run_divide_conquer
     from .algorithms.greedy import detect_suspicious_greedy
     from .algorithms.dynamic_programming import run_dynamic_programming
+    from .algorithms.hashing_implementation import run_hashing_analysis, search_sender_in_hash
 except ImportError:
     from services.fraud_service import load_dataset, get_df, is_loaded, get_dataset_info
     from ai_model import get_model
-    from algorithms.divide_conquer import run_divide_conquer, binary_search
+    from algorithms.divide_conquer import run_divide_conquer
     from algorithms.greedy import detect_suspicious_greedy
     from algorithms.dynamic_programming import run_dynamic_programming
+    from algorithms.hashing_implementation import run_hashing_analysis, search_sender_in_hash
 
 app = FastAPI(title="Fraud Detection ADSA")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -97,6 +99,16 @@ def greedy():
 def dynamic():
     df = _require()
     return run_dynamic_programming(df)
+
+@app.get("/hashing")
+def hashing():
+    df = _require()
+    return run_hashing_analysis(df)
+
+@app.get("/hash-search")
+def hash_search(sender: str = Query(...)):
+    df = _require()
+    return search_sender_in_hash(df, sender=sender)
 
 import uvicorn
 

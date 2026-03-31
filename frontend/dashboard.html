@@ -94,6 +94,7 @@ Upload CSV
             <button onclick="goTo('datasetBox')" class="navbtn">Dataset Overview</button>
             <button onclick="goTo('divideBox')" class="navbtn">Divide and Conquer</button>
             <button onclick="goTo('greedyBox')" class="navbtn">Greedy Method</button>
+            <button onclick="goTo('hashBox')" class="navbtn">Hashing Implementation</button>
             <button onclick="goTo('dynamicBox')" class="navbtn">Dynamic Programming</button>
           </div>
         </div>
@@ -187,10 +188,25 @@ Upload CSV
           <div id="greedyResult"><p class="text-sm italic text-slate-500">Run the greedy method to rank suspicious transactions and risky senders.</p></div>
         </section>
 
+        <section id="hashBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
+          <div class="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 04</p>
+              <h3 class="mt-2 text-2xl font-black text-ink">Hashing Implementation</h3>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row">
+              <input type="text" id="hashSender" placeholder="Enter sender to search" class="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-amber-500">
+              <button onclick="runHashing()" class="rounded-2xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700">Run Analysis</button>
+              <button onclick="searchHashSender()" class="rounded-2xl bg-slate-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800">Search Sender</button>
+            </div>
+          </div>
+          <div id="hashResult"><p class="text-sm italic text-slate-500">Build a sender hash table to inspect collisions, bucket usage, and fast sender-based lookup.</p></div>
+        </section>
+
         <section id="dynamicBox" class="box rounded-[1.75rem] bg-panel p-5 shadow-panel sm:p-6">
           <div class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 04</p>
+              <p class="text-xs uppercase tracking-[0.28em] text-slate-500">Section 05</p>
               <h3 class="mt-2 text-2xl font-black text-ink">Dynamic Programming</h3>
             </div>
             <button onclick="runDynamic()" class="rounded-2xl bg-violet-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-800">Run Analysis</button>
@@ -269,7 +285,7 @@ function txTable(rows, cols, keys) {
         return `<td><span class="brisk">${row[key] ?? "--"}</span></td>`;
       }
 
-      if (key === "running_total" || key === "amount") {
+      if (key === "running_total" || key === "amount" || key === "total_amount") {
         return `<td class="font-semibold">${money(row[key])}</td>`;
       }
 
@@ -448,6 +464,92 @@ async function runGreedy() {
   } catch (error) {
     document.getElementById("greedyResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
     setStatus(`Greedy analysis failed: ${error.message}`, "error");
+  }
+}
+
+async function runHashing() {
+  loading("hashResult");
+  setStatus("Running Hashing analysis...");
+
+  try {
+    const res = await fetch(`${API}/hashing`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    const groups = data.top_sender_groups || [];
+    const buckets = data.bucket_overview || [];
+
+    document.getElementById("hashResult").innerHTML = `
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="stat-card bg-amber-50"><div class="stat-num text-amber-700">${formatNumber(data.unique_senders)}</div><div class="stat-lbl text-amber-500">Unique Senders</div></div>
+        <div class="stat-card bg-sky-50"><div class="stat-num text-sky-700">${formatNumber(data.collision_count)}</div><div class="stat-lbl text-sky-500">Collisions</div></div>
+        <div class="stat-card bg-emerald-50"><div class="stat-num text-emerald-700">${formatNumber(data.load_factor)}</div><div class="stat-lbl text-emerald-500">Load Factor</div></div>
+        <div class="stat-card bg-violet-50"><div class="stat-num text-violet-700">${formatNumber(data.max_bucket_depth)}</div><div class="stat-lbl text-violet-500">Max Bucket Depth</div></div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mt-4">
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${formatNumber(data.capacity)}</div><div class="stat-lbl text-slate-500">Capacity</div></div>
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${formatNumber(data.size)}</div><div class="stat-lbl text-slate-500">Stored Keys</div></div>
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${formatNumber(data.used_buckets)}</div><div class="stat-lbl text-slate-500">Used Buckets</div></div>
+        <div class="stat-card bg-slate-100"><div class="stat-num text-slate-800">${formatNumber(data.sample_size)}</div><div class="stat-lbl text-slate-500">Processed Rows</div></div>
+      </div>
+      <div class="sec">Top Sender Groups</div>
+      ${txTable(groups, ["Sender", "Transactions", "Total Amount", "Fraud Count", "Methods"], ["sender", "transaction_count", "total_amount", "fraud_count", "payment_methods"])}
+      <div class="sec">Bucket Overview</div>
+      ${txTable(buckets, ["Bucket", "Chain Length", "Keys"], ["bucket_index", "chain_length", "keys"])}
+      <div class="sec">Search Sender</div>
+      <div id="hashSearchResult" class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Enter a sender above and use Search Sender to test hash lookup.</div>
+    `;
+
+    setStatus(`Hashing complete. Unique sender keys: ${formatNumber(data.unique_senders)}. Collisions: ${formatNumber(data.collision_count)}.`, "ok");
+  } catch (error) {
+    document.getElementById("hashResult").innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
+    setStatus(`Hashing failed: ${error.message}`, "error");
+  }
+}
+
+async function searchHashSender() {
+  const sender = document.getElementById("hashSender").value.trim();
+  const resultBox = document.getElementById("hashSearchResult");
+
+  if (!sender) {
+    alert("Enter a sender to search.");
+    return;
+  }
+
+  if (resultBox) {
+    resultBox.innerHTML = '<span class="spin-icon"></span><span class="text-sm text-amber-700">Searching sender in hash table...</span>';
+    resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  setStatus(`Searching hash table for sender ${sender}...`);
+
+  try {
+    const res = await fetch(`${API}/hash-search?sender=${encodeURIComponent(sender)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Request failed");
+
+    const target = document.getElementById("hashSearchResult") || document.getElementById("hashResult");
+    target.innerHTML = `
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="stat-card ${data.found ? "bg-emerald-50" : "bg-rose-50"}"><div class="stat-num ${data.found ? "text-emerald-700" : "text-rose-700"}">${data.found ? "Found" : "Not Found"}</div><div class="stat-lbl ${data.found ? "text-emerald-500" : "text-rose-500"}">Lookup Result</div></div>
+        <div class="stat-card bg-sky-50"><div class="stat-num text-sky-700">${formatNumber(data.bucket_index)}</div><div class="stat-lbl text-sky-500">Bucket Index</div></div>
+        <div class="stat-card bg-amber-50"><div class="stat-num text-amber-700">${formatNumber(data.transaction_count)}</div><div class="stat-lbl text-amber-500">Transactions</div></div>
+      </div>
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        Sender: <span class="font-semibold text-slate-800">${data.sender}</span><br>
+        Total Amount: <span class="font-semibold text-slate-800">${money(data.total_amount)}</span>
+      </div>
+      <div class="sec">Matched Transactions</div>
+      ${txTable(data.transactions || [], ["#", "Index", "Receiver", "Amount", "Method", "Status"], ["_i", "index", "receiver", "amount", "payment_method", "fraud_flag"])}
+    `;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    setStatus(data.found ? `Hash search complete. Sender found in bucket ${data.bucket_index}.` : `Hash search complete. Sender not found.`, data.found ? "ok" : "info");
+  } catch (error) {
+    if (resultBox) {
+      resultBox.innerHTML = `<p class="text-sm text-rose-600">Error: ${error.message}</p>`;
+      resultBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setStatus(`Hash search failed: ${error.message}`, "error");
   }
 }
 

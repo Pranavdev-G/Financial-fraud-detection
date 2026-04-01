@@ -112,6 +112,65 @@ def _finalize_response(row: pd.Series, ml_probability: float) -> dict[str, Any]:
     }
 
 
+def _compute_rule_scores(df: pd.DataFrame) -> np.ndarray:
+    deviation = pd.to_numeric(df.get("amount_deviation", 0.0), errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    is_new_receiver = pd.to_numeric(df.get("is_new_receiver", 0), errors="coerce").fillna(0).to_numpy(dtype=int)
+    txn_count_24h = pd.to_numeric(df.get("txn_count_24h", 0), errors="coerce").fillna(0).to_numpy(dtype=int)
+    unusual_time_flag = pd.to_numeric(df.get("unusual_time_flag", 0), errors="coerce").fillna(0).to_numpy(dtype=int)
+    location_change_flag = pd.to_numeric(df.get("location_change_flag", 0), errors="coerce").fillna(0).to_numpy(dtype=int)
+    historical_max_flag = pd.to_numeric(df.get("historical_max_flag", 0), errors="coerce").fillna(0).to_numpy(dtype=int)
+    transaction_velocity = pd.to_numeric(df.get("transaction_velocity", 0.0), errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    avg_amount_user = pd.to_numeric(df.get("avg_amount_user", 0.0), errors="coerce").fillna(0.0).to_numpy(dtype=float)
+
+    rule_scores = np.where(deviation >= 2.5, 35.0, np.where(deviation >= 1.5, 20.0, 0.0))
+    rule_scores += is_new_receiver * 12.0
+    rule_scores += (txn_count_24h >= 3) * 10.0
+    rule_scores += unusual_time_flag * 8.0
+    rule_scores += location_change_flag * 8.0
+    rule_scores += historical_max_flag * 18.0
+    rule_scores += (transaction_velocity > avg_amount_user * 2.0) * 9.0
+    return np.clip(rule_scores, 0.0, 100.0)
+
+
+def _build_reason_strings(df: pd.DataFrame, ml_probabilities: np.ndarray) -> list[str]:
+    reasons = []
+    for row, ml_probability in zip(df.itertuples(index=False), ml_probabilities):
+        row_reasons: list[str] = []
+        deviation = _safe_float(getattr(row, "amount_deviation", 0.0))
+        if deviation >= 2.5:
+            row_reasons.append("High deviation from user average")
+        elif deviation >= 1.5:
+            row_reasons.append("Amount is elevated versus sender history")
+
+        if int(getattr(row, "is_new_receiver", 0)) == 1:
+            row_reasons.append("New receiver for this sender")
+        if int(getattr(row, "txn_count_24h", 0)) >= 3:
+            row_reasons.append("High transaction count in the last 24 hours")
+        if int(getattr(row, "unusual_time_flag", 0)) == 1:
+            row_reasons.append("Transaction happened at an unusual hour")
+        if int(getattr(row, "location_change_flag", 0)) == 1:
+            row_reasons.append("Location changed since the previous transaction")
+        if int(getattr(row, "historical_max_flag", 0)) == 1:
+            row_reasons.append("Current amount exceeds historical maximum")
+        if _safe_float(getattr(row, "transaction_velocity", 0.0)) > _safe_float(getattr(row, "avg_amount_user", 0.0)) * 2:
+            row_reasons.append("Transaction velocity is unusually high")
+        if _safe_float(getattr(row, "pattern_score", 0.0)) >= 55:
+            row_reasons.append("Abnormal sequential pattern detected")
+        if _safe_float(getattr(row, "outlier_score", 0.0)) >= 50:
+            row_reasons.append("Extreme deviation detected by recursive outlier analysis")
+        if ml_probability >= 0.8:
+            row_reasons.append(f"ML confidence high: {ml_probability:.2f}")
+        elif ml_probability >= 0.55:
+            row_reasons.append(f"ML confidence moderate: {ml_probability:.2f}")
+
+        deduped: list[str] = []
+        for reason in row_reasons:
+            if reason not in deduped:
+                deduped.append(reason)
+        reasons.append("; ".join(deduped[:6]))
+    return reasons
+
+
 def evaluate_dataset(df: pd.DataFrame) -> pd.DataFrame:
     if caches.is_fresh() and caches.scored_df is not None and len(caches.scored_df) == len(df):
         return caches.scored_df.copy()
@@ -123,19 +182,35 @@ def evaluate_dataset(df: pd.DataFrame) -> pd.DataFrame:
 
     if caches.ml_preds is not None and len(caches.ml_preds) == len(enriched):
         ml_probabilities = np.asarray(caches.ml_preds)
+    elif not model.trained:
+        ml_probabilities = np.full(len(enriched), 0.5)
     else:
         ml_probabilities = np.asarray(model.score_dataframe(enriched))
         caches.ml_preds = ml_probabilities
 
-    responses = [_finalize_response(enriched.iloc[idx], float(ml_probabilities[idx])) for idx in range(len(enriched))]
+    rule_scores = np.round(_compute_rule_scores(enriched), 2)
+    pattern_scores = pd.to_numeric(enriched["pattern_score"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    outlier_scores = pd.to_numeric(enriched["outlier_score"], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    ml_scores = np.round(ml_probabilities * 100.0, 2)
+    risk_scores = np.round(
+        np.clip(rule_scores * 0.4 + pattern_scores * 0.2 + outlier_scores * 0.1 + ml_scores * 0.3, 0.0, 100.0),
+        2,
+    )
+
     enriched["ml_probability"] = np.round(ml_probabilities, 4)
-    enriched["ml_score"] = [item["components"]["ml_score"] for item in responses]
-    enriched["rule_score"] = [item["components"]["rule_score"] for item in responses]
-    enriched["risk_score"] = [item["risk_score"] for item in responses]
-    enriched["risk_level"] = [item["risk_level"] for item in responses]
-    enriched["risk_reasons"] = ["; ".join(item["reasons"]) for item in responses]
+    enriched["ml_score"] = ml_scores
+    enriched["rule_score"] = rule_scores
+    enriched["risk_score"] = risk_scores
+    enriched["risk_level"] = np.where(risk_scores > 75, "HIGH", np.where(risk_scores > 45, "MEDIUM", "LOW"))
+    enriched["risk_reasons"] = ""
 
     enriched = enriched.sort_values("risk_score", ascending=False).reset_index(drop=True)
+    reason_limit = min(len(enriched), 200)
+    if reason_limit:
+        top_slice = enriched.iloc[:reason_limit].copy()
+        top_ml_probabilities = top_slice["ml_probability"].to_numpy(dtype=float, copy=False)
+        enriched.loc[:reason_limit - 1, "risk_reasons"] = _build_reason_strings(top_slice, top_ml_probabilities)
+
     caches.scored_df = enriched.copy()
     return enriched
 
@@ -265,27 +340,26 @@ def build_dashboard_payload(df: pd.DataFrame) -> dict[str, Any]:
     pattern_series = [
         {
             "step": index + 1,
-            "amount": round(float(row["amount"]), 2),
-            "risk_score": round(float(row["risk_score"]), 2),
-            "is_anomaly": int(float(row["risk_score"]) > 75),
+            "amount": round(float(row.amount), 2),
+            "risk_score": round(float(row.risk_score), 2),
+            "is_anomaly": int(float(row.risk_score) > 75),
         }
-        for index, (_, row) in enumerate(sender_series.iterrows())
+        for index, row in enumerate(sender_series.itertuples(index=False))
     ]
 
-    suspicious_transactions = []
-    for _, row in scored.head(20).iterrows():
-        suspicious_transactions.append(
-            {
-                "sender": str(row.get("sender", "N/A")),
-                "receiver": str(row.get("receiver", "N/A")),
-                "amount": round(float(row.get("amount", 0)), 2),
-                "deviation": round(float(row.get("amount_deviation", 0)), 2),
-                "risk_score": round(float(row.get("risk_score", 0)), 2),
-                "risk_level": str(row.get("risk_level", "LOW")),
-                "reasons": str(row.get("risk_reasons", "")),
-                "payment_method": str(row.get("payment_method", "N/A")),
-            }
-        )
+    suspicious_transactions = [
+        {
+            "sender": str(row.sender),
+            "receiver": str(row.receiver),
+            "amount": round(float(row.amount), 2),
+            "deviation": round(float(row.amount_deviation), 2),
+            "risk_score": round(float(row.risk_score), 2),
+            "risk_level": str(row.risk_level),
+            "reasons": str(row.risk_reasons),
+            "payment_method": str(row.payment_method),
+        }
+        for row in scored.head(20).itertuples(index=False)
+    ]
 
     level_counts = {key: int(value) for key, value in scored["risk_level"].value_counts().to_dict().items()}
     algorithm_roles = {

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import pandas as pd
+
 
 @dataclass
 class HashNode:
@@ -130,6 +132,9 @@ def _transaction_payload(row, index):
         "receiver": str(row.get("receiver", "N/A")),
         "amount": round(float(row.get("amount", 0)), 2),
         "payment_method": str(row.get("payment_method", "N/A")),
+        "location": str(row.get("location", "N/A")),
+        "timestamp": str(row.get("timestamp", "")),
+        "txn_count_24h": int(row.get("txn_count_24h", 0)),
         "fraud_flag": int(row.get("fraud", 0)),
     }
 
@@ -139,11 +144,69 @@ def build_sender_hash_table(df, sample=500):
     estimated = max(17, len(df_s) // 8 if len(df_s) else 17)
     table = HashTable(capacity=estimated)
 
-    for index, row in df_s.iterrows():
-        sender = str(row.get("sender", "UNKNOWN"))
-        table.insert(sender, _transaction_payload(row, index))
+    for index, row in enumerate(df_s.itertuples(index=False)):
+        sender = str(getattr(row, "sender", "UNKNOWN"))
+        table.insert(
+            sender,
+            {
+                "index": int(index),
+                "sender": sender,
+                "receiver": str(getattr(row, "receiver", "N/A")),
+                "amount": round(float(getattr(row, "amount", 0)), 2),
+                "payment_method": str(getattr(row, "payment_method", "N/A")),
+                "location": str(getattr(row, "location", "N/A")),
+                "timestamp": str(getattr(row, "timestamp", "")),
+                "txn_count_24h": int(getattr(row, "txn_count_24h", 0)),
+                "fraud_flag": int(getattr(row, "fraud", 0)),
+            },
+        )
 
     return table, df_s
+
+
+def build_user_profile_hash(df, sample=500):
+    table, df_s = build_sender_hash_table(df, sample=sample)
+    profile_table = HashTable(capacity=max(17, table.capacity))
+
+    if len(df_s) == 0:
+        return profile_table
+
+    sender_frame = df_s.copy()
+    sender_frame["sender"] = sender_frame["sender"].astype(str)
+    sender_frame["receiver"] = sender_frame["receiver"].astype(str)
+
+    grouped = sender_frame.groupby("sender", sort=False)
+    summary = grouped.agg(
+        avg_amount=("amount", "mean"),
+        transaction_count=("amount", "size"),
+        last_location=("location", "last"),
+        max_amount=("amount", "max"),
+    )
+    known_receivers = grouped["receiver"].agg(lambda values: sorted(pd.unique(values).tolist()))
+
+    for sender, row in summary.iterrows():
+        transactions = table.search(sender) or []
+        profile_table.insert(
+            sender,
+            {
+                "avg_amount": round(float(row["avg_amount"]), 2),
+                "transaction_count": int(row["transaction_count"]),
+                "last_transactions": transactions[-5:],
+                "last_location": str(row["last_location"]),
+                "max_amount": round(float(row["max_amount"]), 2),
+                "known_receivers": known_receivers.loc[sender],
+            },
+        )
+
+    return profile_table
+
+
+def get_user_profile(df, sender):
+    profiles = build_user_profile_hash(df, sample=len(df))
+    profile = profiles.search(sender)
+    if isinstance(profile, list) and profile:
+        return profile[0]
+    return None
 
 
 def run_hashing_analysis(df, sample=500, top_n=12):
@@ -151,22 +214,36 @@ def run_hashing_analysis(df, sample=500, top_n=12):
     stats = table.bucket_stats()
 
     sender_summaries = []
-    for sender in df_s["sender"].astype(str).value_counts().index.tolist():
-        transactions = table.search(sender) or []
-        if not transactions:
-            continue
-        total_amount = round(sum(float(tx["amount"]) for tx in transactions), 2)
-        fraud_count = sum(int(tx["fraud_flag"]) for tx in transactions)
-        methods = sorted({str(tx["payment_method"]) for tx in transactions})
-        sender_summaries.append({
-            "sender": sender,
-            "transaction_count": len(transactions),
-            "total_amount": total_amount,
-            "fraud_count": fraud_count,
-            "payment_methods": ", ".join(methods[:3]) if methods else "N/A",
-        })
-
-    sender_summaries.sort(key=lambda item: (-item["transaction_count"], -item["total_amount"], item["sender"]))
+    if len(df_s):
+        sender_frame = df_s.copy()
+        sender_frame["sender"] = sender_frame["sender"].astype(str)
+        payment_methods = sender_frame.groupby("sender", sort=False)["payment_method"].agg(
+            lambda values: ", ".join(sorted(pd.unique(values.astype(str)).tolist())[:3]) or "N/A"
+        )
+        summaries = sender_frame.groupby("sender", sort=False).agg(
+            transaction_count=("amount", "size"),
+            total_amount=("amount", "sum"),
+            fraud_count=("fraud", "sum"),
+            avg_amount=("amount", "mean"),
+            last_location=("location", "last"),
+        )
+        summaries["payment_methods"] = payment_methods
+        summaries = summaries.reset_index().sort_values(
+            ["transaction_count", "total_amount", "sender"],
+            ascending=[False, False, True],
+        )
+        sender_summaries = [
+            {
+                "sender": str(row.sender),
+                "transaction_count": int(row.transaction_count),
+                "total_amount": round(float(row.total_amount), 2),
+                "fraud_count": int(row.fraud_count),
+                "payment_methods": str(row.payment_methods),
+                "avg_amount": round(float(row.avg_amount), 2),
+                "last_location": str(row.last_location),
+            }
+            for row in summaries.head(top_n).itertuples(index=False)
+        ]
 
     bucket_view = []
     for bucket in table.display():
@@ -194,7 +271,15 @@ def run_hashing_analysis(df, sample=500, top_n=12):
 
 
 def search_sender_in_hash(df, sender, sample=500):
-    table, _ = build_sender_hash_table(df, sample=sample)
+    try:
+        from ..caches import caches
+    except ImportError:
+        caches = None
+
+    table = caches.sender_hash if caches and caches.is_fresh() and caches.sender_hash is not None else None
+    if table is None:
+        table, _ = build_sender_hash_table(df, sample=max(sample, len(df)))
+
     transactions = table.search(sender)
     bucket_index = table.hash_function(sender)
 

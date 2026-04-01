@@ -1,115 +1,78 @@
-# algorithms/dynamic_programming.py
-# DP-based suspicious activity detection.
-# Kadane's algorithm: finds peak burst fraud window (max-sum subarray).
-# LIS: finds longest escalating transaction chain — gradual fraud escalation.
-# Both return actual transaction details, not just amounts.
-
-import bisect
 import numpy as np
+import pandas as pd
 
 
-def max_subarray_sum(amounts):
-    """Kadane's algorithm. Returns (max_sum, start_idx, end_idx)."""
-    if not amounts:
-        return 0, 0, 0
-    best_sum = current_sum = amounts[0]
-    best_start = start = 0
-    best_end = 0
-    for i in range(1, len(amounts)):
-        if current_sum + amounts[i] < amounts[i]:
-            current_sum = amounts[i]
-            start = i
-        else:
-            current_sum += amounts[i]
-        if current_sum > best_sum:
-            best_sum    = current_sum
-            best_start  = start
-            best_end    = i
-    return round(best_sum, 2), best_start, best_end
+def compute_pattern_scores(df: pd.DataFrame) -> pd.Series:
+    sorted_df = df.sort_values(["sender", "timestamp"]).reset_index()
+    scored_values = np.zeros(len(sorted_df), dtype=float)
 
+    for _, group in sorted_df.groupby("sender", sort=False):
+        ratios = group["amount_deviation"].to_numpy(dtype=float, copy=False) + 1.0
+        historical_flags = group["historical_max_flag"].to_numpy(dtype=int, copy=False)
+        positions = group.index.to_numpy(dtype=int, copy=False)
+        quiet_streak = 0
+        spike_streak = 0
+        best_score = 0.0
+        for pos, ratio, historical_flag in zip(positions, ratios, historical_flags):
+            is_quiet = ratio <= 1.1
+            is_spike = ratio >= 1.8 or historical_flag == 1
 
-def longest_increasing_subsequence_indices(amounts):
-    """
-    O(n log n) LIS using patience sorting.
-    Returns list of indices (into amounts) that form the LIS.
-    """
-    if not amounts:
-        return []
-    n     = len(amounts)
-    tails = []        # tails[i] = index of smallest tail for IS of length i+1
-    preds = [-1] * n  # predecessor for path reconstruction
-    pos   = []        # actual index stored at each tails position
+            if is_quiet:
+                quiet_streak = min(quiet_streak + 1, 4)
+                spike_streak = max(spike_streak - 1, 0)
+                current_score = max(5.0, best_score * 0.35)
+            elif is_spike:
+                spike_streak += 1
+                current_score = min(100.0, 18 + quiet_streak * 12 + spike_streak * 18 + ratio * 8)
+                best_score = max(best_score, current_score)
+            else:
+                quiet_streak = max(quiet_streak - 1, 0)
+                spike_streak = max(spike_streak - 1, 0)
+                current_score = max(best_score * 0.45, 10.0 + ratio * 4)
+                best_score = max(best_score * 0.8, current_score)
 
-    for i, a in enumerate(amounts):
-        idx = bisect.bisect_left([amounts[t] for t in tails], a)
-        if idx == len(tails):
-            tails.append(i)
-            pos.append(i)
-        else:
-            tails[idx] = i
-            pos[idx]   = i
-        preds[i] = tails[idx - 1] if idx > 0 else -1
+            scored_values[pos] = round(float(current_score), 2)
 
-    # Reconstruct path
-    path = []
-    k = tails[-1]
-    while k != -1:
-        path.append(k)
-        k = preds[k]
-    path.reverse()
-    return path
+    scored = pd.Series(scored_values, index=sorted_df["index"])
+    return scored.reindex(df.index).fillna(0.0)
 
 
 def run_dynamic_programming(df, sample=500):
-    amounts = [round(float(x), 2) for x in df["amount"].tolist()[:sample]]
-    df_s    = df.iloc[:sample].reset_index(drop=True)
+    df_s = df.iloc[:sample].copy().reset_index(drop=True)
+    if "pattern_score" not in df_s.columns:
+        df_s["pattern_score"] = compute_pattern_scores(df_s)
+    hot = df_s.sort_values("pattern_score", ascending=False).head(12)
+    suspicious_chain = [
+        {
+            "sender": str(row.sender),
+            "receiver": str(row.receiver),
+            "amount": round(float(row.amount), 2),
+            "payment_method": str(row.payment_method),
+            "location": str(row.location),
+            "timestamp": str(row.timestamp),
+            "txn_count_24h": int(row.txn_count_24h),
+            "pattern_score": round(float(row.pattern_score), 2),
+            "fraud_flag": int(row.fraud),
+        }
+        for row in hot.itertuples(index=False)
+    ]
 
-    # ── Kadane's: burst window ─────────────────────────────────────────
-    max_sum, s_idx, e_idx = max_subarray_sum(amounts)
-    window_df = df_s.iloc[s_idx: e_idx + 1]
-
-    window_transactions = []
-    for _, row in window_df.iterrows():
-        window_transactions.append({
-            "sender":         str(row.get("sender", "N/A")),
-            "receiver":       str(row.get("receiver", "N/A")),
-            "amount":         round(float(row["amount"]), 2),
-            "payment_method": str(row.get("payment_method", "N/A")),
-            "fraud_flag":     int(row.get("fraud", 0)),
-        })
-
-    fraud_in_window = sum(1 for t in window_transactions if t["fraud_flag"] == 1)
-
-    # ── LIS: escalating chain ──────────────────────────────────────────
-    lis_indices = longest_increasing_subsequence_indices(amounts)
-
-    lis_transactions = []
-    for idx in lis_indices:
-        row = df_s.iloc[idx]
-        lis_transactions.append({
-            "index":          int(idx),
-            "sender":         str(row.get("sender", "N/A")),
-            "receiver":       str(row.get("receiver", "N/A")),
-            "amount":         round(float(row["amount"]), 2),
-            "payment_method": str(row.get("payment_method", "N/A")),
-            "fraud_flag":     int(row.get("fraud", 0)),
-        })
-
-    fraud_in_lis = sum(1 for t in lis_transactions if t["fraud_flag"] == 1)
+    sender_patterns = (
+        df_s.groupby("sender")["pattern_score"]
+        .max()
+        .sort_values(ascending=False)
+        .head(10)
+        .reset_index()
+        .to_dict(orient="records")
+    )
 
     return {
-        "sample_size": len(amounts),
-        "max_subarray": {
-            "sum":              max_sum,
-            "start_index":      s_idx,
-            "end_index":        e_idx,
-            "window_length":    e_idx - s_idx + 1,
-            "fraud_in_window":  fraud_in_window,
-            "transactions":     window_transactions,
-        },
-        "longest_increasing_subsequence": {
-            "length":          len(lis_indices),
-            "fraud_in_lis":    fraud_in_lis,
-            "transactions":    lis_transactions,
-        },
+        "sample_size": len(df_s),
+        "max_pattern_score": round(float(df_s["pattern_score"].max()), 2) if len(df_s) else 0,
+        "avg_pattern_score": round(float(df_s["pattern_score"].mean()), 2) if len(df_s) else 0,
+        "high_pattern_transactions": suspicious_chain,
+        "pattern_by_sender": [
+            {"sender": row["sender"], "pattern_score": round(float(row["pattern_score"]), 2)}
+            for row in sender_patterns
+        ],
     }

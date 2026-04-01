@@ -1,54 +1,33 @@
-# services/fraud_service.py
-# Smart dataset loader — accepts ANY financial fraud CSV.
-# Auto-maps columns, engineers features, infers fraud labels if missing.
+import hashlib
+from datetime import datetime
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-_df: pd.DataFrame = None
-_raw_columns: list = []
-_column_map: dict = {}
+_df: pd.DataFrame | None = None
+_raw_columns: list[str] = []
+_column_map: dict[str, str] = {}
 
-# ── Column keyword maps ────────────────────────────────────────────────
+CITY_POOL = [
+    "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Pune",
+    "Chennai", "Kolkata", "Ahmedabad", "Jaipur", "Lucknow",
+]
+
 COLUMN_KEYWORDS = {
-    "amount": [
-        "amount", "amt", "value", "transaction_amount", "trans_amount",
-        "payment_amount", "sum", "price", "total", "money", "cash",
-        "transaction_value", "txn_amount"
-    ],
-    "fraud": [
-        "fraud", "is_fraud", "isfraud", "label", "class", "target",
-        "fraudulent", "fraud_flag", "fraud_label", "anomaly", "suspicious",
-        "isFraud", "is_fraudulent", "fraud_ind", "fraud_indicator"
-    ],
-    "sender": [
-        "sender", "nameorig", "name_orig", "from", "source", "payer",
-        "account_from", "acc_from", "customer", "user", "account_id",
-        "card_number", "cardholder", "customer_id", "userid",
-        "from_account", "originator", "account_number", "acc_no",
-        "account_no", "card_no", "v1", "accountnumber"
-    ],
-    "receiver": [
-        "receiver", "namedest", "name_dest", "to", "destination", "payee",
-        "account_to", "acc_to", "merchant", "beneficiary", "merchant_id",
-        "to_account", "dest", "recipient", "terminal_id", "pos_terminal"
-    ],
-    "payment_method": [
-        "payment_method", "type", "transaction_type", "trans_type",
-        "method", "category", "payment_type", "channel", "mode",
-        "payment_channel", "transaction_method", "txn_type", "tx_type"
-    ],
-    "balance_before": [
-        "oldbalanceorg", "old_balance", "balance_before", "prev_balance",
-        "before_balance", "opening_balance", "balance_orig",
-        "oldbalanceorig", "balance_old"
-    ],
-    "balance_after": [
-        "newbalanceorig", "new_balance", "balance_after", "after_balance",
-        "closing_balance", "balance_dest", "newbalancedest",
-        "newbalanceorg", "balance_new"
-    ],
+    "amount": ["amount", "amt", "value", "transaction_amount", "txn_amount", "money", "total"],
+    "fraud": ["fraud", "is_fraud", "label", "target", "class", "fraud_flag"],
+    "sender": ["sender", "nameorig", "from", "payer", "customer", "user", "account_id", "from_account"],
+    "receiver": ["receiver", "namedest", "to", "payee", "merchant", "beneficiary", "to_account"],
+    "payment_method": ["payment_method", "type", "transaction_type", "method", "channel", "mode"],
+    "balance_before": ["oldbalanceorg", "old_balance", "balance_before", "prev_balance", "opening_balance"],
+    "balance_after": ["newbalanceorig", "new_balance", "balance_after", "closing_balance"],
+    "timestamp": ["timestamp", "time", "datetime", "transaction_time", "date", "step"],
+    "location": ["location", "city", "state", "branch", "merchant_city", "geo", "ip_location"],
 }
+
+
+def _stable_hash(text: str) -> int:
+    return int(hashlib.md5(text.encode("utf-8")).hexdigest()[:8], 16)
 
 
 def _find_column(df_cols, keyword_list):
@@ -74,35 +53,43 @@ def _auto_map_columns(df):
     return mapping
 
 
-def _engineer_features(df):
+def _ensure_timestamp(df):
     df = df.copy()
+    if "timestamp" in df.columns:
+        parsed = pd.to_datetime(df["timestamp"], errors="coerce")
+        if parsed.notna().sum() > 0:
+            fallback = pd.date_range("2025-01-01 08:00:00", periods=len(df), freq="20min")
+            df["timestamp"] = parsed.fillna(pd.Series(fallback, index=df.index))
+            return df
 
-    if "amount" in df.columns:
-        mean_amt = df["amount"].mean()
-        std_amt  = df["amount"].std() + 1e-9
-        df["amount_log"]      = np.log1p(df["amount"])
-        df["amount_zscore"]   = (df["amount"] - mean_amt) / std_amt
-        df["is_large_amount"] = (df["amount"] > mean_amt + 2 * std_amt).astype(int)
-        df["amount_round"]    = (df["amount"] % 1 == 0).astype(int)
-        df["amount_bin"]      = pd.qcut(df["amount"], q=10, labels=False, duplicates="drop")
+        numeric = pd.to_numeric(df["timestamp"], errors="coerce")
+        if numeric.notna().sum() > 0:
+            base = pd.Timestamp("2025-01-01 08:00:00")
+            df["timestamp"] = base + pd.to_timedelta(numeric.fillna(0), unit="h")
+            return df
 
-    if "balance_before" in df.columns and "balance_after" in df.columns:
-        df["balance_diff"]    = df["balance_before"] - df["balance_after"]
-        df["balance_ratio"]   = df["balance_diff"] / (df["balance_before"] + 1e-9)
-        df["emptied_account"] = ((df["balance_after"] == 0) & (df["balance_before"] > 0)).astype(int)
-        df["balance_mismatch"] = np.abs(df["balance_diff"] - df.get("amount", 0)).astype(float)
+    base_time = pd.Timestamp("2025-01-01 08:00:00")
+    offsets = [(idx * 17) + (_stable_hash(str(sender)) % 7) for idx, sender in enumerate(df.get("sender", pd.Series(range(len(df)))))]
+    df["timestamp"] = [base_time + pd.Timedelta(minutes=int(offset)) for offset in offsets]
+    return df
 
-    if "sender" in df.columns:
-        sc = df["sender"].value_counts()
-        df["sender_tx_count"] = df["sender"].map(sc)
-        if "amount" in df.columns:
-            df["sender_avg_amount"] = df.groupby("sender")["amount"].transform("mean")
-            df["sender_max_amount"] = df.groupby("sender")["amount"].transform("max")
 
-    if "receiver" in df.columns:
-        rc = df["receiver"].value_counts()
-        df["receiver_tx_count"] = df["receiver"].map(rc)
+def _ensure_location(df):
+    df = df.copy()
+    if "location" in df.columns:
+        df["location"] = df["location"].astype(str).replace({"nan": "UNKNOWN"}).fillna("UNKNOWN")
+        return df
 
+    locations = []
+    for idx, row in df.iterrows():
+        sender = str(row.get("sender", "UNKNOWN"))
+        receiver = str(row.get("receiver", "UNKNOWN"))
+        seed = _stable_hash(f"{sender}-{receiver}-{idx}")
+        base_city = CITY_POOL[seed % len(CITY_POOL)]
+        if idx % 9 == 0:
+            base_city = CITY_POOL[(seed + 3) % len(CITY_POOL)]
+        locations.append(base_city)
+    df["location"] = locations
     return df
 
 
@@ -111,11 +98,73 @@ def _infer_fraud_label(df):
     if "amount" not in df.columns:
         df["fraud"] = 0
         return df
-    Q3  = df["amount"].quantile(0.75)
-    IQR = Q3 - df["amount"].quantile(0.25)
-    upper = Q3 + 3 * IQR
+    q3 = df["amount"].quantile(0.75)
+    iqr = q3 - df["amount"].quantile(0.25)
+    upper = q3 + 3 * iqr
     z = np.abs((df["amount"] - df["amount"].mean()) / (df["amount"].std() + 1e-9))
     df["fraud"] = ((df["amount"] > upper) | (z > 3)).astype(int)
+    return df
+
+
+def _txn_count_last_24h_vectorized(group: pd.DataFrame) -> pd.Series:
+    times = group["timestamp"].values.astype('datetime64[ns]')
+    txn_counts = np.zeros(len(group), dtype=int)
+    for i in range(len(group)):
+        mask = np.abs(times - times[i]) <= np.timedelta64(24, 'h')
+        txn_counts[i] = np.sum(mask)
+    return pd.Series(txn_counts, index=group.index)
+
+
+def _engineer_features(df):
+    df = df.copy().sort_values(["sender", "timestamp", "receiver"]).reset_index(drop=True)
+    global_mean = float(df["amount"].mean()) if len(df) else 0.0
+
+    df["prev_txn_count"] = df.groupby("sender").cumcount()
+    sender_cumsum = df.groupby("sender")["amount"].cumsum() - df["amount"]
+    df["avg_amount_user"] = sender_cumsum / df["prev_txn_count"].replace(0, np.nan)
+    df["avg_amount_user"] = df["avg_amount_user"].fillna(global_mean).round(2)
+
+    sender_cummax = df.groupby("sender")["amount"].cummax()
+    df["historical_max_amount"] = sender_cummax.groupby(df["sender"]).shift(1).fillna(df["avg_amount_user"])
+    df["historical_max_flag"] = (df["amount"] > df["historical_max_amount"]).astype(int)
+    df["amount_deviation"] = ((df["amount"] - df["avg_amount_user"]).abs() / (df["avg_amount_user"].abs() + 1.0)).round(4)
+
+    receiver_counts = df.groupby(["sender", "receiver"]).cumcount()
+    df["is_new_receiver"] = (receiver_counts == 0).astype(int)
+
+    df["time_gap"] = (
+        df.groupby("sender")["timestamp"].diff().dt.total_seconds().div(3600).fillna(24.0).clip(lower=0.05)
+    ).round(3)
+    df["txn_count_24h"] = df.groupby("sender").apply(_txn_count_last_24h_vectorized).reset_index(level=0, drop=True).astype(int)
+    df["transaction_velocity"] = (df["amount"] / df["time_gap"].replace(0, 0.05)).round(2)
+    df["hour_of_day"] = df["timestamp"].dt.hour.astype(int)
+    df["unusual_time_flag"] = df["hour_of_day"].isin([0, 1, 2, 3, 4, 5, 23]).astype(int)
+
+    previous_location = df.groupby("sender")["location"].shift(1).fillna(df["location"])
+    df["location_change_flag"] = (df["location"] != previous_location).astype(int)
+
+    df["sender_tx_count"] = df.groupby("sender")["sender"].transform("count")
+    df["receiver_tx_count"] = df.groupby("receiver")["receiver"].transform("count")
+    df["sender_avg_amount"] = df.groupby("sender")["amount"].transform("mean").round(2)
+    df["sender_max_amount"] = df.groupby("sender")["amount"].transform("max").round(2)
+    df["amount_log"] = np.log1p(df["amount"]).round(5)
+    df["amount_zscore"] = ((df["amount"] - global_mean) / (df["amount"].std() + 1e-9)).round(4)
+    df["is_large_amount"] = (df["amount"] > global_mean + 2 * df["amount"].std()).astype(int)
+    df["amount_round"] = (df["amount"] % 1 == 0).astype(int)
+    df["amount_bin"] = pd.qcut(df["amount"], q=min(10, len(df)), labels=False, duplicates="drop")
+    df["amount_bin"] = df["amount_bin"].fillna(0).astype(int)
+
+    if "balance_before" in df.columns and "balance_after" in df.columns:
+        df["balance_diff"] = (df["balance_before"] - df["balance_after"]).astype(float)
+        df["balance_ratio"] = (df["balance_diff"] / (df["balance_before"] + 1e-9)).round(4)
+        df["emptied_account"] = ((df["balance_after"] == 0) & (df["balance_before"] > 0)).astype(int)
+        df["balance_mismatch"] = np.abs(df["balance_diff"] - df["amount"]).round(2)
+    else:
+        df["balance_diff"] = 0.0
+        df["balance_ratio"] = 0.0
+        df["emptied_account"] = 0
+        df["balance_mismatch"] = 0.0
+
     return df
 
 
@@ -128,67 +177,52 @@ def load_dataset(filepath: str) -> dict:
     raw.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in raw.columns]
 
     _column_map = _auto_map_columns(raw)
-    df = raw.rename(columns=_column_map)
-    df = df.dropna(axis=1, how="all")
+    df = raw.rename(columns=_column_map).dropna(axis=1, how="all")
 
-    # ── Amount ─────────────────────────────────────────────────────────
     if "amount" not in df.columns:
-        num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        if num_cols:
-            # pick column with highest variance as likely amount
-            best = max(num_cols, key=lambda c: df[c].std())
-            df = df.rename(columns={best: "amount"})
-        else:
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        if not numeric_cols:
             raise ValueError("No numeric column found to use as transaction amount.")
+        best = max(numeric_cols, key=lambda c: df[c].std())
+        df = df.rename(columns={best: "amount"})
 
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0).abs()
 
-    # ── Fraud label ────────────────────────────────────────────────────
     if "fraud" not in df.columns:
         df = _infer_fraud_label(df)
     else:
         df["fraud"] = pd.to_numeric(df["fraud"], errors="coerce").fillna(0).astype(int)
-        if df["fraud"].sum() == 0 or df["fraud"].nunique() < 2:
+        if df["fraud"].nunique() < 2:
             df = _infer_fraud_label(df)
 
-    # ── Sender ─────────────────────────────────────────────────────────
+    cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
     if "sender" not in df.columns:
-        cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
-        if cat_cols:
-            df["sender"] = df[cat_cols[0]].astype(str)
-        else:
-            df["sender"] = "ACCT_" + df.index.astype(str)
-
-    # ── Receiver ───────────────────────────────────────────────────────
+        df["sender"] = df[cat_cols[0]].astype(str) if cat_cols else ("ACC_" + df.index.astype(str))
     if "receiver" not in df.columns:
-        cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
-        remaining = [c for c in cat_cols if c not in ("sender",)]
-        if remaining:
-            df["receiver"] = df[remaining[0]].astype(str)
-        else:
-            df["receiver"] = "MERCH_" + (df.index % 500).astype(str)
-
-    # ── Payment method ─────────────────────────────────────────────────
+        remaining = [c for c in cat_cols if c != "sender"]
+        df["receiver"] = df[remaining[0]].astype(str) if remaining else ("MERCH_" + (df.index % 500).astype(str))
     if "payment_method" not in df.columns:
-        cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
         remaining = [c for c in cat_cols if c not in ("sender", "receiver")]
-        if remaining:
-            df["payment_method"] = df[remaining[0]].astype(str)
-        else:
-            df["payment_method"] = "TRANSACTION"
+        df["payment_method"] = df[remaining[0]].astype(str) if remaining else "TRANSACTION"
 
-    df["sender"]         = df["sender"].astype(str).fillna("UNKNOWN")
-    df["receiver"]       = df["receiver"].astype(str).fillna("UNKNOWN")
+    df["sender"] = df["sender"].astype(str).fillna("UNKNOWN")
+    df["receiver"] = df["receiver"].astype(str).fillna("UNKNOWN")
     df["payment_method"] = df["payment_method"].astype(str).fillna("UNKNOWN")
 
-    # Feature engineering
+    df = _ensure_timestamp(df)
+    df = _ensure_location(df)
     df = _engineer_features(df)
 
     _df = df
+
+    # Reset derived caches; they warm up asynchronously after upload.
+    from ..caches import caches
+    caches.invalidate()
+
     return get_dataset_info()
 
 
-def get_df() -> pd.DataFrame:
+def get_df() -> pd.DataFrame | None:
     return _df
 
 
@@ -202,24 +236,36 @@ def get_dataset_info() -> dict:
 
     fraud_count = int(_df["fraud"].sum())
     total = len(_df)
+    amount_stats = {
+        "min": round(float(_df["amount"].min()), 2),
+        "max": round(float(_df["amount"].max()), 2),
+        "mean": round(float(_df["amount"].mean()), 2),
+        "median": round(float(_df["amount"].median()), 2),
+        "std": round(float(_df["amount"].std()), 2),
+    }
 
     return {
+        "loaded_at": datetime.utcnow().isoformat(),
         "total_transactions": total,
         "fraud_transactions": fraud_count,
         "legitimate_transactions": total - fraud_count,
         "fraud_rate": round(fraud_count / total * 100, 2) if total else 0,
-        "unique_senders":   int(_df["sender"].nunique()),
+        "unique_senders": int(_df["sender"].nunique()),
         "unique_receivers": int(_df["receiver"].nunique()),
         "payment_methods": _df["payment_method"].value_counts().head(10).to_dict(),
-        "amount_stats": {
-            "min":    round(float(_df["amount"].min()),    2),
-            "max":    round(float(_df["amount"].max()),    2),
-            "mean":   round(float(_df["amount"].mean()),   2),
-            "median": round(float(_df["amount"].median()), 2),
-            "std":    round(float(_df["amount"].std()),    2),
-        },
+        "amount_stats": amount_stats,
         "columns_detected": _column_map,
         "original_columns": _raw_columns,
+        "engineered_features": [
+            "avg_amount_user",
+            "txn_count_24h",
+            "amount_deviation",
+            "is_new_receiver",
+            "time_gap",
+            "transaction_velocity",
+            "unusual_time_flag",
+            "location_change_flag",
+        ],
     }
 
 

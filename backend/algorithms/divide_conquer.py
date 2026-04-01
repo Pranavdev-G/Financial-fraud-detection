@@ -1,5 +1,5 @@
-# algorithms/divide_conquer.py
-import numpy as np
+import pandas as pd
+
 
 def merge_sort(arr):
     if len(arr) <= 1:
@@ -7,70 +7,70 @@ def merge_sort(arr):
     mid = len(arr) // 2
     return _merge(merge_sort(arr[:mid]), merge_sort(arr[mid:]))
 
+
 def _merge(left, right):
-    result = []; i = j = 0
+    merged = []
+    i = j = 0
     while i < len(left) and j < len(right):
-        if left[i] <= right[j]: result.append(left[i]); i += 1
-        else: result.append(right[j]); j += 1
-    result.extend(left[i:]); result.extend(right[j:])
-    return result
+        if left[i] <= right[j]:
+            merged.append(left[i])
+            i += 1
+        else:
+            merged.append(right[j])
+            j += 1
+    merged.extend(left[i:])
+    merged.extend(right[j:])
+    return merged
 
-def quick_sort(arr):
-    data = arr[:]
-    _qs(data, 0, len(data)-1)
-    return data
 
-def _qs(arr, low, high):
-    if low < high:
-        p = _partition(arr, low, high)
-        _qs(arr, low, p-1); _qs(arr, p+1, high)
+def iterative_max(values):
+    return max(values) if values else 0.0
 
-def _partition(arr, low, high):
-    pivot = arr[high]; i = low-1
-    for j in range(low, high):
-        if arr[j] <= pivot:
-            i += 1; arr[i], arr[j] = arr[j], arr[i]
-    arr[i+1], arr[high] = arr[high], arr[i+1]
-    return i+1
 
-def binary_search(sorted_arr, target):
-    lo, hi = 0, len(sorted_arr)-1
-    while lo <= hi:
-        mid = (lo+hi)//2
-        if sorted_arr[mid] == target:
-            while mid > 0 and sorted_arr[mid-1] == target: mid -= 1
-            return mid
-        elif sorted_arr[mid] < target: lo = mid+1
-        else: hi = mid-1
-    return -1
+def iterative_extreme_deviation(values, baseline):
+    return max((abs(float(v) - baseline) for v in values), default=0.0)
 
-def run_divide_conquer(df, sample=200):
-    amounts = [round(a, 2) for a in df["amount"].tolist()[:sample]]
-    ms = merge_sort(amounts)
-    qs = quick_sort(amounts)
 
-    mean_val  = float(np.mean(ms))
-    std_val   = float(np.std(ms))
-    threshold = mean_val + 2 * std_val
-    outlier_set = set(v for v in ms if v > threshold)
+def compute_outlier_scores(df: pd.DataFrame) -> pd.Series:
+    baseline = pd.to_numeric(df.get("avg_amount_user", 0.0), errors="coerce").fillna(0.0)
+    amount = pd.to_numeric(df.get("amount", 0.0), errors="coerce").fillna(0.0)
+    hist_max = pd.to_numeric(df.get("historical_max_amount", baseline), errors="coerce").fillna(baseline)
 
-    outlier_rows = df[df["amount"].isin(outlier_set)].head(30)
-    outliers = []
-    for _, row in outlier_rows.iterrows():
-        outliers.append({
-            "sender":         str(row.get("sender","N/A")),
-            "receiver":       str(row.get("receiver","N/A")),
-            "amount":         round(float(row["amount"]),2),
-            "payment_method": str(row.get("payment_method","N/A")),
-            "fraud_flag":     int(row.get("fraud",0)),
-        })
+    deviation_ratio = (amount - baseline).abs() / (baseline.abs() + 1.0)
+    scores = (deviation_ratio * 22).clip(upper=100)
+    scores = (scores + (amount > hist_max).astype(float) * 25).clip(upper=100)
+    return scores.round(2)
+
+
+def run_divide_conquer(df, sample=300):
+    df_s = df.iloc[:sample].copy().reset_index(drop=True)
+    amounts = [round(float(value), 2) for value in df_s["amount"].tolist()]
+    sorted_amounts = merge_sort(amounts)
+    global_avg = float(df_s["amount"].mean()) if len(df_s) else 0.0
+    max_amount = iterative_max(amounts)
+    max_deviation = iterative_extreme_deviation(amounts, global_avg)
+
+    if "outlier_score" not in df_s.columns:
+        df_s["outlier_score"] = compute_outlier_scores(df_s)
+    flagged = df_s.sort_values("outlier_score", ascending=False).head(12)
+    outliers = [
+        {
+            "sender": str(row.sender),
+            "receiver": str(row.receiver),
+            "amount": round(float(row.amount), 2),
+            "payment_method": str(row.payment_method),
+            "outlier_score": round(float(row.outlier_score), 2),
+            "historical_max_amount": round(float(row.historical_max_amount), 2),
+            "fraud_flag": int(row.fraud),
+        }
+        for row in flagged.itertuples(index=False)
+    ]
 
     return {
-        "total_processed":      len(amounts),
-        "original_sample":      amounts,
-        "merge_sorted_sample":  ms,
-        "quick_sorted_sample":  qs,
-        "outlier_threshold":    round(threshold,2),
-        "outlier_count":        len(outlier_set),
+        "total_processed": len(df_s),
+        "global_average": round(global_avg, 2),
+        "max_transaction": round(max_amount, 2),
+        "max_deviation": round(max_deviation, 2),
+        "merge_sorted_sample": sorted_amounts[:25],
         "outlier_transactions": outliers,
     }

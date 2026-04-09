@@ -69,8 +69,12 @@ def _ensure_timestamp(df):
             return df
 
     base_time = pd.Timestamp("2025-01-01 08:00:00")
-    offsets = [(idx * 17) + (_stable_hash(str(sender)) % 7) for idx, sender in enumerate(df.get("sender", pd.Series(range(len(df)))))]
-    df["timestamp"] = [base_time + pd.Timedelta(minutes=int(offset)) for offset in offsets]
+    sender_series = df.get("sender")
+    if sender_series is None:
+        sender_series = pd.Series(range(len(df)), index=df.index, dtype="object")
+    sender_offsets = sender_series.astype(str).map(lambda sender: _stable_hash(sender) % 7).to_numpy(dtype=np.int64)
+    offsets = (np.arange(len(df), dtype=np.int64) * 17) + sender_offsets
+    df["timestamp"] = base_time + pd.to_timedelta(offsets, unit="m")
     return df
 
 
@@ -80,16 +84,13 @@ def _ensure_location(df):
         df["location"] = df["location"].astype(str).replace({"nan": "UNKNOWN"}).fillna("UNKNOWN")
         return df
 
-    locations = []
-    for idx, row in df.iterrows():
-        sender = str(row.get("sender", "UNKNOWN"))
-        receiver = str(row.get("receiver", "UNKNOWN"))
-        seed = _stable_hash(f"{sender}-{receiver}-{idx}")
-        base_city = CITY_POOL[seed % len(CITY_POOL)]
-        if idx % 9 == 0:
-            base_city = CITY_POOL[(seed + 3) % len(CITY_POOL)]
-        locations.append(base_city)
-    df["location"] = locations
+    sender_series = df.get("sender", pd.Series("UNKNOWN", index=df.index, dtype="object")).astype(str)
+    receiver_series = df.get("receiver", pd.Series("UNKNOWN", index=df.index, dtype="object")).astype(str)
+    seeds = (sender_series + "-" + receiver_series + "-" + df.index.astype(str)).map(_stable_hash).to_numpy(dtype=np.int64)
+    city_index = seeds % len(CITY_POOL)
+    alternate_mask = (np.arange(len(df)) % 9) == 0
+    city_index[alternate_mask] = (city_index[alternate_mask] + 3) % len(CITY_POOL)
+    df["location"] = np.take(np.array(CITY_POOL, dtype=object), city_index)
     return df
 
 
@@ -107,17 +108,21 @@ def _infer_fraud_label(df):
 
 
 def _txn_count_last_24h_vectorized(group: pd.DataFrame) -> pd.Series:
-    times = group["timestamp"].values.astype('datetime64[ns]')
-    txn_counts = np.zeros(len(group), dtype=int)
-    for i in range(len(group)):
-        mask = np.abs(times - times[i]) <= np.timedelta64(24, 'h')
-        txn_counts[i] = np.sum(mask)
+    times = group["timestamp"].to_numpy(dtype="datetime64[ns]")
+    txn_counts = np.zeros(len(group), dtype=np.int32)
+    left = 0
+    window = np.timedelta64(24, "h")
+    for right in range(len(group)):
+        while times[right] - times[left] > window:
+            left += 1
+        txn_counts[right] = right - left + 1
     return pd.Series(txn_counts, index=group.index)
 
 
 def _engineer_features(df):
     df = df.copy().sort_values(["sender", "timestamp", "receiver"]).reset_index(drop=True)
     global_mean = float(df["amount"].mean()) if len(df) else 0.0
+    amount_std = float(df["amount"].std()) if len(df) else 0.0
 
     df["prev_txn_count"] = df.groupby("sender").cumcount()
     sender_cumsum = df.groupby("sender")["amount"].cumsum() - df["amount"]
@@ -148,8 +153,8 @@ def _engineer_features(df):
     df["sender_avg_amount"] = df.groupby("sender")["amount"].transform("mean").round(2)
     df["sender_max_amount"] = df.groupby("sender")["amount"].transform("max").round(2)
     df["amount_log"] = np.log1p(df["amount"]).round(5)
-    df["amount_zscore"] = ((df["amount"] - global_mean) / (df["amount"].std() + 1e-9)).round(4)
-    df["is_large_amount"] = (df["amount"] > global_mean + 2 * df["amount"].std()).astype(int)
+    df["amount_zscore"] = ((df["amount"] - global_mean) / (amount_std + 1e-9)).round(4)
+    df["is_large_amount"] = (df["amount"] > global_mean + 2 * amount_std).astype(int)
     df["amount_round"] = (df["amount"] % 1 == 0).astype(int)
     df["amount_bin"] = pd.qcut(df["amount"], q=min(10, len(df)), labels=False, duplicates="drop")
     df["amount_bin"] = df["amount_bin"].fillna(0).astype(int)
@@ -171,7 +176,10 @@ def _engineer_features(df):
 def load_dataset(filepath: str) -> dict:
     global _df, _raw_columns, _column_map
 
-    raw = pd.read_csv(filepath)
+    try:
+        raw = pd.read_csv(filepath)
+    except Exception as exc:
+        raise ValueError(f"Could not read CSV file: {exc}") from exc
     raw.columns = [c.strip() for c in raw.columns]
     _raw_columns = list(raw.columns)
     raw.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in raw.columns]
@@ -181,6 +189,14 @@ def load_dataset(filepath: str) -> dict:
 
     if "amount" not in df.columns:
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        if not numeric_cols:
+            converted_numeric = []
+            for col in df.columns:
+                candidate = pd.to_numeric(df[col], errors="coerce")
+                if candidate.notna().sum() > 0:
+                    df[col] = candidate
+                    converted_numeric.append(col)
+            numeric_cols = converted_numeric
         if not numeric_cols:
             raise ValueError("No numeric column found to use as transaction amount.")
         best = max(numeric_cols, key=lambda c: df[c].std())

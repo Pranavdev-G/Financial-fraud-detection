@@ -74,11 +74,17 @@ def health():
 
 @app.post("/upload-dataset")
 async def upload_dataset(file: UploadFile = File(...)):
-    if not file.filename.endswith(".csv"):
+    filename = file.filename or ""
+    if not filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files accepted.")
     save_path = os.path.join(UPLOAD_DIR, "transactions.csv")
-    with open(save_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    try:
+        with open(save_path, "wb") as f:
+            shutil.copyfileobj(file.file, f, length=1024 * 1024)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to save upload: {exc}") from exc
+    finally:
+        await file.close()
     try:
         info = load_dataset(save_path)
     except ValueError as e:
@@ -91,7 +97,7 @@ async def upload_dataset(file: UploadFile = File(...)):
 
     return {
         "status": "ok",
-        "filename": file.filename,
+        "filename": filename,
         "dataset_info": info,
         "model_training": model.training_summary,
     }

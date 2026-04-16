@@ -1,5 +1,7 @@
 import os
 import shutil
+import socket
+import sys
 from threading import Lock, Thread
 from pathlib import Path
 
@@ -7,6 +9,11 @@ from fastapi import FastAPI, UploadFile, File, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import asyncio
+
+# Allow `py main.py` from the backend directory by restoring package context.
+if __package__ in (None, ""):
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    __package__ = "backend"
 
 from .services.fraud_service import load_dataset, get_df, is_loaded, get_dataset_info
 from .ai_model import get_model
@@ -29,6 +36,17 @@ _warmup_lock = Lock()
 def _reload_enabled() -> bool:
     value = os.environ.get("UVICORN_RELOAD", "").strip().lower()
     return value in {"1", "true", "yes", "on"}
+
+
+def _find_available_port(preferred: int = 8000, search_limit: int = 30) -> int:
+    for port in range(preferred, preferred + search_limit + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if sock.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    raise RuntimeError(
+        f"No free port found between {preferred} and {preferred + search_limit}."
+    )
 
 
 def _warm_model_and_caches(df_snapshot):
@@ -172,9 +190,14 @@ async def hash_search(sender: str = Query(...)):
 import uvicorn
 
 if __name__ == "__main__":
+    preferred_port = int(os.environ.get("PORT", "8000"))
+    run_port = _find_available_port(preferred_port)
+    if run_port != preferred_port:
+        print(f"[backend] Port {preferred_port} busy; using {run_port} instead.")
+
     uvicorn.run(
         "backend.main:app",
         host="127.0.0.1",
-        port=8000,
+        port=run_port,
         reload=_reload_enabled(),
     )

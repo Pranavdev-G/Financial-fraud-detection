@@ -26,6 +26,31 @@ COLUMN_KEYWORDS = {
 }
 
 
+def _read_csv_robust(filepath: str) -> pd.DataFrame:
+    """
+    Read CSV files with common encodings and auto-detected separators.
+    This avoids upload failures for UTF-16/Latin-1 exports.
+    """
+    # Fast path first (C engine + common separators), then robust fallbacks.
+    attempts = [
+        {"encoding": "utf-8-sig", "sep": ","},
+        {"encoding": "utf-8", "sep": ","},
+        {"encoding": "utf-8-sig", "sep": ";"},
+        {"encoding": "utf-8", "sep": ";"},
+        {"encoding": "utf-8-sig", "sep": None, "engine": "python"},
+        {"encoding": "utf-8", "sep": None, "engine": "python"},
+        {"encoding": "utf-16", "sep": None, "engine": "python"},
+        {"encoding": "latin-1", "sep": None, "engine": "python"},
+    ]
+    last_error: Exception | None = None
+    for options in attempts:
+        try:
+            return pd.read_csv(filepath, **options)
+        except Exception as exc:
+            last_error = exc
+    raise ValueError(f"Could not read CSV file: {last_error}")
+
+
 def _stable_hash(text: str) -> int:
     return int(hashlib.md5(text.encode("utf-8")).hexdigest()[:8], 16)
 
@@ -177,7 +202,7 @@ def load_dataset(filepath: str) -> dict:
     global _df, _raw_columns, _column_map
 
     try:
-        raw = pd.read_csv(filepath)
+        raw = _read_csv_robust(filepath)
     except Exception as exc:
         raise ValueError(f"Could not read CSV file: {exc}") from exc
     raw.columns = [c.strip() for c in raw.columns]
